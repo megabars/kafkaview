@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.kafkaview</groupId>
+    <artifactId>kafkaview</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>KafkaView</name>
+    <description>JavaFX desktop application for viewing Kafka topics and messages</description>
+
+    <properties>
+        <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <javafx.version>21.0.5</javafx.version>
+        <kafka.version>3.7.0</kafka.version>
+        <slf4j.version>1.7.36</slf4j.version>
+    </properties>
+
+    <dependencies>
+        <!-- JavaFX Controls (TableView, ListView, dialogs, etc.) -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- JavaFX Base (properties, bindings, collections) -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-base</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- JavaFX Graphics (Scene, Stage, Canvas) -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- Apache Kafka Client -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+            <version>${kafka.version}</version>
+        </dependency>
+
+        <!-- SLF4J API (required by Kafka client) -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+
+        <!-- SLF4J Simple binding (routes Kafka logs to stderr, no config needed) -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Compiler plugin: enforce Java 17 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                    <release>17</release>
+                </configuration>
+            </plugin>
+
+            <!-- JavaFX Maven Plugin: run with mvn javafx:run -->
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>0.0.8</version>
+                <configuration>
+                    <!-- Plain class name (no module prefix) — classpath mode without module-info.java -->
+                    <mainClass>com.kafkaview.MainApp</mainClass>
+                </configuration>
+            </plugin>
+
+            <!-- Shade plugin: build fat JAR with all deps except JavaFX natives -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>fat</shadedClassifierName>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>com.kafkaview.MainApp</mainClass>
+                                </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>module-info.class</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!--
+            dist profile: builds a self-contained Windows application using jpackage.
+            Usage: mvn verify -Pdist
+            Output: target/dist/KafkaView/KafkaView.exe
+        -->
+        <profile>
+            <id>dist</id>
+            <dependencies>
+                <!-- Windows-specific JavaFX JARs (include native DLLs for Windows) -->
+                <dependency>
+                    <groupId>org.openjfx</groupId>
+                    <artifactId>javafx-controls</artifactId>
+                    <version>${javafx.version}</version>
+                    <classifier>win</classifier>
+                    <scope>provided</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.openjfx</groupId>
+                    <artifactId>javafx-base</artifactId>
+                    <version>${javafx.version}</version>
+                    <classifier>win</classifier>
+                    <scope>provided</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.openjfx</groupId>
+                    <artifactId>javafx-graphics</artifactId>
+                    <version>${javafx.version}</version>
+                    <classifier>win</classifier>
+                    <scope>provided</scope>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <!-- Step 1: Copy Windows JavaFX JARs to target/javafx-libs
+                         jpackage will use these as the module path for jlink to build a minimal JRE -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <version>3.6.0</version>
+                        <executions>
+                            <execution>
+                                <id>copy-javafx-win</id>
+                                <phase>verify</phase>
+                                <goals><goal>copy-dependencies</goal></goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.directory}/javafx-libs</outputDirectory>
+                                    <includeGroupIds>org.openjfx</includeGroupIds>
+                                    <includeClassifiers>win</includeClassifiers>
+                                    <includeScope>provided</includeScope>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!-- Steps 2+3: Prepare input dir, clean previous output, run jpackage.
+                         Uses Ant exec task with java.home for reliable Windows path resolution.
+                         type=app-image: folder with .exe + bundled JRE (no WiX/installer required).
+                         module-path: Windows JavaFX JARs used by jlink to build a minimal JRE.
+                         add-modules: JavaFX modules to include in the bundled JRE. -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>prepare-and-package</id>
+                                <phase>verify</phase>
+                                <goals><goal>run</goal></goals>
+                                <configuration>
+                                    <target>
+                                        <mkdir dir="${project.build.directory}/app-input"/>
+                                        <delete dir="${project.build.directory}/dist"/>
+                                        <copy file="${project.build.directory}/${project.build.finalName}-fat.jar"
+                                              tofile="${project.build.directory}/app-input/${project.build.finalName}.jar"/>
+                                        <exec executable="${java.home}/bin/jpackage" failonerror="true">
+                                            <arg value="--type"/>
+                                            <arg value="app-image"/>
+                                            <arg value="--name"/>
+                                            <arg value="KafkaView"/>
+                                            <arg value="--input"/>
+                                            <arg value="${project.build.directory}/app-input"/>
+                                            <arg value="--main-jar"/>
+                                            <arg value="${project.build.finalName}.jar"/>
+                                            <arg value="--main-class"/>
+                                            <arg value="com.kafkaview.MainApp"/>
+                                            <arg value="--module-path"/>
+                                            <arg value="${project.build.directory}/javafx-libs"/>
+                                            <arg value="--add-modules"/>
+                                            <arg value="javafx.controls,javafx.base,javafx.graphics"/>
+                                            <arg value="--dest"/>
+                                            <arg value="${project.build.directory}/dist"/>
+                                            <arg value="--java-options"/>
+                                            <arg value="-Dfile.encoding=UTF-8"/>
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!--
+            dist-mac profile: builds a self-contained macOS application using jpackage.
+            Usage: mvn verify -Pdist-mac
+            Output: target/dist/KafkaView.dmg
+        -->
+        <profile>
+            <id>dist-mac</id>
+            <dependencies>
+                <!-- macOS Apple Silicon JavaFX JARs (include native dylibs) -->
+                <dependency>
+                    <groupId>org.openjfx</groupId>
+                    <artifactId>javafx-controls</artifactId>
+                    <version>${javafx.version}</version>
+                    <classifier>mac-aarch64</classifier>
+                    <scope>provided</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.openjfx</groupId>
+                    <artifactId>javafx-base</artifactId>
+                    <version>${javafx.version}</version>
+                    <classifier>mac-aarch64</classifier>
+                    <scope>provided</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.openjfx</groupId>
+                    <artifactId>javafx-graphics</artifactId>
+                    <version>${javafx.version}</version>
+                    <classifier>mac-aarch64</classifier>
+                    <scope>provided</scope>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <!-- Step 1: Copy macOS JavaFX JARs to target/javafx-libs -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <version>3.6.0</version>
+                        <executions>
+                            <execution>
+                                <id>copy-javafx-mac</id>
+                                <phase>verify</phase>
+                                <goals><goal>copy-dependencies</goal></goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.directory}/javafx-libs-mac</outputDirectory>
+                                    <includeGroupIds>org.openjfx</includeGroupIds>
+                                    <includeClassifiers>mac-aarch64</includeClassifiers>
+                                    <includeScope>provided</includeScope>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!-- Step 2: Prepare input dir and run jpackage to produce .dmg -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>prepare-and-package-mac</id>
+                                <phase>verify</phase>
+                                <goals><goal>run</goal></goals>
+                                <configuration>
+                                    <target>
+                                        <mkdir dir="${project.build.directory}/app-input"/>
+                                        <delete dir="${project.build.directory}/dist"/>
+                                        <copy file="${project.build.directory}/${project.build.finalName}-fat.jar"
+                                              tofile="${project.build.directory}/app-input/${project.build.finalName}.jar"/>
+                                        <exec executable="/usr/bin/jpackage" failonerror="true">
+                                            <arg value="--type"/>
+                                            <arg value="dmg"/>
+                                            <arg value="--name"/>
+                                            <arg value="KafkaView"/>
+                                            <arg value="--input"/>
+                                            <arg value="${project.build.directory}/app-input"/>
+                                            <arg value="--main-jar"/>
+                                            <arg value="${project.build.finalName}.jar"/>
+                                            <arg value="--main-class"/>
+                                            <arg value="com.kafkaview.MainApp"/>
+                                            <arg value="--module-path"/>
+                                            <arg value="${project.build.directory}/javafx-libs-mac"/>
+                                            <arg value="--add-modules"/>
+                                            <arg value="javafx.controls,javafx.base,javafx.graphics,java.naming,java.management,java.security.sasl,java.security.jgss"/>
+                                            <arg value="--dest"/>
+                                            <arg value="${project.build.directory}/dist"/>
+                                            <arg value="--app-version"/>
+                                            <arg value="${project.version}"/>
+                                            <arg value="--java-options"/>
+                                            <arg value="-Dfile.encoding=UTF-8"/>
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>
