@@ -17,6 +17,9 @@ import java.util.function.Consumer;
 
 public class TopicListPanel {
 
+    private static final String STYLE_STATUS_NORMAL = "-fx-font-size: 11px; -fx-text-fill: #666666;";
+    private static final String STYLE_STATUS_ERROR  = "-fx-font-size: 11px; -fx-text-fill: #cc0000;";
+
     private final KafkaService kafkaService;
 
     private final ListView<String> topicListView;
@@ -38,7 +41,7 @@ public class TopicListPanel {
 
         statusLabel = new Label();
         statusLabel.setWrapText(true);
-        statusLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #666666;");
+        statusLabel.setStyle(STYLE_STATUS_NORMAL);
 
         refreshButton = new Button("Обновить");
         refreshButton.setMaxWidth(Double.MAX_VALUE);
@@ -56,8 +59,6 @@ public class TopicListPanel {
         root.setPadding(new Insets(10));
         root.setMinWidth(200);
         root.setMaxWidth(400);
-
-        loadTopics();
     }
 
     public Node getView() {
@@ -75,25 +76,28 @@ public class TopicListPanel {
 
         kafkaService.listTopics()
                 .thenAcceptAsync(this::onTopicsLoaded, Platform::runLater)
-                .exceptionally(ex -> {
-                    Platform.runLater(() -> onTopicsError(ex));
-                    return null;
-                });
+                .exceptionallyAsync(ex -> { onTopicsError(ex); return null; }, Platform::runLater);
     }
 
     private void onTopicsLoaded(List<String> topics) {
         topicListView.getItems().setAll(topics);
-        statusLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #666666;");
-        statusLabel.setText(topics.isEmpty()
-                ? "Топики не найдены"
-                : topics.size() + " топик(ов)");
+        setStatusNormal(topics.isEmpty() ? "Топики не найдены" : topics.size() + " топик(ов)");
         refreshButton.setDisable(false);
     }
 
     private void onTopicsError(Throwable error) {
         Throwable cause = error.getCause() != null ? error.getCause() : error;
-        statusLabel.setText("Ошибка: " + cause.getMessage());
-        statusLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #cc0000;");
+        setStatusError("Ошибка: " + cause.getMessage());
         refreshButton.setDisable(false);
+    }
+
+    private void setStatusNormal(String text) {
+        statusLabel.setStyle(STYLE_STATUS_NORMAL);
+        statusLabel.setText(text);
+    }
+
+    private void setStatusError(String text) {
+        statusLabel.setStyle(STYLE_STATUS_ERROR);
+        statusLabel.setText(text);
     }
 }

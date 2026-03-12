@@ -35,6 +35,23 @@ public class MessageDetailDialog {
     private static final String FORMAT_JSON = "JSON";
     private static final String FORMAT_XML  = "XML";
 
+    private static final String STYLE_ERROR = "-fx-font-size: 11px; -fx-text-fill: #cc0000;";
+
+    // TransformerFactory создаётся один раз — тяжёлая инициализация.
+    // Диалоги открываются на FX-потоке, поэтому синхронизация не нужна.
+    private static final TransformerFactory XML_TRANSFORMER_FACTORY = createTransformerFactory();
+
+    private static TransformerFactory createTransformerFactory() {
+        try {
+            TransformerFactory factory = TransformerFactory.newInstance();
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            factory.setAttribute("indent-number", 4);
+            return factory;
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
     private final KafkaMessage message;
     private Stage dialogStage;
 
@@ -105,7 +122,7 @@ public class MessageDetailDialog {
 
         // --- Метка ошибки форматирования ---
         errorLabel = new Label();
-        errorLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #cc0000;");
+        errorLabel.setStyle(STYLE_ERROR);
         errorLabel.setVisible(false);
         errorLabel.setManaged(false);
 
@@ -253,6 +270,7 @@ public class MessageDetailDialog {
         }
 
         if (inString) throw new IllegalArgumentException("Незакрытая строка");
+        if (indent != 0) throw new IllegalArgumentException("Незакрытые скобки");
         return sb.toString();
     }
 
@@ -284,10 +302,7 @@ public class MessageDetailDialog {
         try {
             Source xmlInput = new StreamSource(new StringReader(raw.strip()));
             StringWriter output = new StringWriter();
-            TransformerFactory factory = TransformerFactory.newInstance();
-            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-            factory.setAttribute("indent-number", 4);
-            Transformer transformer = factory.newTransformer();
+            Transformer transformer = XML_TRANSFORMER_FACTORY.newTransformer();
             transformer.setOutputProperty(OutputKeys.INDENT, "yes");
             transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
             transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");

@@ -34,6 +34,9 @@ public class MainWindow {
         // Связываем выбор топика с загрузкой сообщений
         topicListPanel.setOnTopicSelected(messageTablePanel::loadMessages);
 
+        // Загружаем топики после того как все компоненты собраны
+        topicListPanel.loadTopics();
+
         // Разделитель: 30% — список топиков, 70% — таблица сообщений
         SplitPane splitPane = new SplitPane(
                 topicListPanel.getView(),

@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -40,10 +41,17 @@ public class KafkaService {
     private static final int ADMIN_TIMEOUT_MS = 10_000;
 
     private final ConnectionSettings settings;
+    // executor — единственный поток для fetch/send (разделяет состояние producer)
     private final ExecutorService executor;
+    // adminExecutor — отдельный пул для listTopics/testConnection (без общего состояния),
+    // чтобы они не вставали в очередь за долгим fetchMessagesStreaming.
+    private final ExecutorService adminExecutor;
 
     // Флаг отмены текущего fetch. Volatile — читается на executor-потоке, пишется на FX-потоке.
     private volatile boolean fetchCancelled = false;
+
+    // Защита от двойного shutdown().
+    private final AtomicBoolean shutdownCalled = new AtomicBoolean(false);
 
     // Переиспользуемый Producer: создаётся при первой отправке и закрывается при shutdown.
     // Все обращения — исключительно на executor-потоке, синхронизация не нужна.
@@ -54,6 +62,11 @@ public class KafkaService {
         this.settings = settings;
         this.executor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "kafka-worker");
+            t.setDaemon(true);
+            return t;
+        });
+        this.adminExecutor = Executors.newCachedThreadPool(r -> {
+            Thread t = new Thread(r, "kafka-admin");
             t.setDaemon(true);
             return t;
         });
@@ -77,7 +90,7 @@ public class KafkaService {
                 log.error("Не удалось получить список топиков", e);
                 throw new RuntimeException("Не удалось получить список топиков: " + e.getMessage(), e);
             }
-        }, executor);
+        }, adminExecutor);
     }
 
     // -----------------------------------------------------------------------
@@ -104,7 +117,7 @@ public class KafkaService {
                 log.warn("Проверка соединения не удалась: {}", e.getMessage());
                 return false;
             }
-        }, executor);
+        }, adminExecutor);
     }
 
     // -----------------------------------------------------------------------
@@ -230,6 +243,9 @@ public class KafkaService {
     // -----------------------------------------------------------------------
 
     public void shutdown() {
+        if (!shutdownCalled.compareAndSet(false, true)) {
+            return; // повторный вызов игнорируем
+        }
         fetchCancelled = true;
         // Закрываем producer на executor-потоке перед остановкой
         executor.submit(() -> {
@@ -239,12 +255,17 @@ public class KafkaService {
             }
         });
         executor.shutdown();
+        adminExecutor.shutdown();
         try {
             if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
                 executor.shutdownNow();
             }
+            if (!adminExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                adminExecutor.shutdownNow();
+            }
         } catch (InterruptedException ignored) {
             executor.shutdownNow();
+            adminExecutor.shutdownNow();
             Thread.currentThread().interrupt();
         }
     }

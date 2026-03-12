@@ -126,15 +126,13 @@ public class SendMessageDialog {
                     confirmed = true;
                     dialogStage.close();
                 }, Platform::runLater)
-                .exceptionally(ex -> {
-                    Platform.runLater(() -> {
-                        Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                        statusLabel.setText("Ошибка: " + cause.getMessage());
-                        statusLabel.setTextFill(Color.RED);
-                        sendButton.setDisable(false);
-                        cancelButton.setDisable(false);
-                    });
+                .exceptionallyAsync(ex -> {
+                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                    statusLabel.setText("Ошибка: " + cause.getMessage());
+                    statusLabel.setTextFill(Color.RED);
+                    sendButton.setDisable(false);
+                    cancelButton.setDisable(false);
                     return null;
-                });
+                }, Platform::runLater);
     }
 }

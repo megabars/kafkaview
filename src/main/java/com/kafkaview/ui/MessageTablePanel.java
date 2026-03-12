@@ -30,6 +30,9 @@ public class MessageTablePanel {
 
     private static final int PAGE_SIZE = 30;
 
+    private static final String STYLE_STATUS_NORMAL = "-fx-font-size: 11px; -fx-text-fill: #666666;";
+    private static final String STYLE_STATUS_ERROR  = "-fx-font-size: 11px; -fx-text-fill: #cc0000;";
+
     private final KafkaService kafkaService;
 
     private final TableView<KafkaMessage> tableView;
@@ -66,7 +69,7 @@ public class MessageTablePanel {
 
         tableView = new TableView<>(pageItems);
         tableView.setPlaceholder(new Label("Выберите топик слева"));
-        tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         VBox.setVgrow(tableView, Priority.ALWAYS);
 
         tableView.getColumns().addAll(
@@ -113,7 +116,7 @@ public class MessageTablePanel {
         pagination.setAlignment(Pos.CENTER);
 
         statusLabel = new Label();
-        statusLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #666666;");
+        statusLabel.setStyle(STYLE_STATUS_NORMAL);
 
         HBox header = new HBox(10, titleLabel, sendButton);
         header.setAlignment(Pos.CENTER_LEFT);
@@ -139,8 +142,7 @@ public class MessageTablePanel {
         currentTopic = topic;
         sendButton.setDisable(false);
         titleLabel.setText("Сообщения — " + topic);
-        statusLabel.setText("Загрузка...");
-        statusLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #666666;");
+        setStatusNormal("Загрузка...");
         allMessages.clear();
         pageItems.clear();
         pageLabel.setText("");
@@ -154,8 +156,13 @@ public class MessageTablePanel {
                 batch -> {
                     if (generation != myGen) return; // устаревший fetch — игнорируем
                     allMessages.addAll(batch);
+                    // Если активна сортировка — применяем сразу, чтобы страницы были
+                    // корректными и в процессе загрузки, а не только после onComplete.
+                    if (tableView.getComparator() != null) {
+                        allMessages.sort(tableView.getComparator());
+                    }
                     refreshPage();
-                    statusLabel.setText("Загружено: " + allMessages.size() + "…");
+                    setStatusNormal("Загружено: " + allMessages.size() + "…");
                 },
 
                 // onComplete: вызывается на FX-потоке когда всё прочитано
@@ -166,7 +173,7 @@ public class MessageTablePanel {
                         allMessages.sort(tableView.getComparator());
                         refreshPage();
                     }
-                    statusLabel.setText(allMessages.isEmpty()
+                    setStatusNormal(allMessages.isEmpty()
                             ? "Топик \"" + topic + "\" пуст"
                             : "Всего сообщений: " + allMessages.size());
                 },
@@ -175,8 +182,7 @@ public class MessageTablePanel {
                 error -> {
                     if (generation != myGen) return;
                     Throwable cause = error.getCause() != null ? error.getCause() : error;
-                    statusLabel.setText("Ошибка загрузки: " + cause.getMessage());
-                    statusLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #cc0000;");
+                    setStatusError("Ошибка загрузки: " + cause.getMessage());
                 }
         );
     }
@@ -211,6 +217,20 @@ public class MessageTablePanel {
         if (dialog.showAndWait()) {
             loadMessages(currentTopic);
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Хелперы статусной строки
+    // -----------------------------------------------------------------------
+
+    private void setStatusNormal(String text) {
+        statusLabel.setStyle(STYLE_STATUS_NORMAL);
+        statusLabel.setText(text);
+    }
+
+    private void setStatusError(String text) {
+        statusLabel.setStyle(STYLE_STATUS_ERROR);
+        statusLabel.setText(text);
     }
 
     // -----------------------------------------------------------------------
