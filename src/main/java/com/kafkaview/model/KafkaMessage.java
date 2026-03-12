@@ -21,12 +21,14 @@ public class KafkaMessage {
     private final SimpleStringProperty value;
     private final SimpleLongProperty timestamp;
     private final SimpleIntegerProperty partition;
+    private final SimpleLongProperty offset;
 
-    public KafkaMessage(String key, String value, long timestamp, int partition) {
+    public KafkaMessage(String key, String value, long timestamp, int partition, long offset) {
         this.key       = new SimpleStringProperty(key   != null ? key   : "");
         this.value     = new SimpleStringProperty(value != null ? value : "");
         this.timestamp = new SimpleLongProperty(timestamp);
         this.partition = new SimpleIntegerProperty(partition);
+        this.offset    = new SimpleLongProperty(offset);
     }
 
     // --- key ---
@@ -69,16 +71,26 @@ public class KafkaMessage {
         return partition;
     }
 
+    // --- offset ---
+
+    public long getOffset() {
+        return offset.get();
+    }
+
+    public ReadOnlyLongProperty offsetProperty() {
+        return offset;
+    }
+
     // --- helpers ---
 
     public String getFormattedTimestamp() {
-        if (getTimestamp() <= 0) {
-            return "—";
-        }
+        return formatTimestamp(getTimestamp());
+    }
+
+    public static String formatTimestamp(long ts) {
+        if (ts <= 0) return "—";
         LocalDateTime ldt = LocalDateTime.ofInstant(
-                Instant.ofEpochMilli(getTimestamp()),
-                ZoneId.systemDefault()
-        );
+                Instant.ofEpochMilli(ts), ZoneId.systemDefault());
         return ldt.format(FORMATTER);
     }
 }

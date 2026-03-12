@@ -144,9 +144,9 @@ public class SettingsDialog {
                     } else {
                         testResultLabel.setText("Соединение не установлено");
                         testResultLabel.setTextFill(Color.RED);
-                        // Откатываем, если тест не прошёл
-                        settings.setBootstrapServers(previous);
                     }
+                    // Всегда откатываем — сохранение происходит только при нажатии OK
+                    settings.setBootstrapServers(previous);
                     testButton.setDisable(false);
                     okButton.setDisable(false);
                 }, Platform::runLater);

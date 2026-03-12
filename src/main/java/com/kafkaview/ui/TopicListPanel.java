@@ -83,6 +83,7 @@ public class TopicListPanel {
 
     private void onTopicsLoaded(List<String> topics) {
         topicListView.getItems().setAll(topics);
+        statusLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #666666;");
         statusLabel.setText(topics.isEmpty()
                 ? "Топики не найдены"
                 : topics.size() + " топик(ов)");

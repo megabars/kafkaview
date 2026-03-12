@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -46,6 +45,11 @@ public class KafkaService {
     // Флаг отмены текущего fetch. Volatile — читается на executor-потоке, пишется на FX-потоке.
     private volatile boolean fetchCancelled = false;
 
+    // Переиспользуемый Producer: создаётся при первой отправке и закрывается при shutdown.
+    // Все обращения — исключительно на executor-потоке, синхронизация не нужна.
+    private KafkaProducer<String, String> producer;
+    private String producerBootstrap; // серверы, для которых создан текущий producer
+
     public KafkaService(ConnectionSettings settings) {
         this.settings = settings;
         this.executor = Executors.newSingleThreadExecutor(r -> {
@@ -65,7 +69,7 @@ public class KafkaService {
             try (AdminClient admin = AdminClient.create(props)) {
                 return admin.listTopics(new ListTopicsOptions().timeoutMs(ADMIN_TIMEOUT_MS))
                         .names()
-                        .get(15, TimeUnit.SECONDS)
+                        .get(ADMIN_TIMEOUT_MS + 2_000, TimeUnit.MILLISECONDS)
                         .stream()
                         .sorted()
                         .collect(Collectors.toList());
@@ -142,8 +146,9 @@ public class KafkaService {
 
                 // Умный seek: начинаем с offset = endOffset - maxPerPartition,
                 // чтобы читать только последние N сообщений без просмотра всего топика
+                int maxMessages = settings.getMaxMessages();
                 int maxPerPartition = Math.max(1,
-                        settings.getMaxMessages() / Math.max(1, partitions.size()));
+                        maxMessages / Math.max(1, partitions.size()));
                 for (TopicPartition tp : partitions) {
                     long end = endOffsets.getOrDefault(tp, 0L);
                     consumer.seek(tp, Math.max(0, end - maxPerPartition));
@@ -153,16 +158,23 @@ public class KafkaService {
                         topic, partitions.size(), maxPerPartition);
 
                 // Основной цикл чтения — каждый batch сразу отправляем в UI
+                int collected = 0;
                 while (!fetchCancelled) {
                     ConsumerRecords<String, String> records = consumer.poll(POLL_TIMEOUT);
 
                     if (!records.isEmpty()) {
                         List<KafkaMessage> batch = new ArrayList<>(records.count());
                         for (ConsumerRecord<String, String> r : records) {
-                            batch.add(new KafkaMessage(r.key(), r.value(), r.timestamp(), r.partition()));
+                            if (collected >= maxMessages) break;
+                            batch.add(new KafkaMessage(
+                                    r.key(), r.value(), r.timestamp(), r.partition(), r.offset()));
+                            collected++;
                         }
-                        // Передаём batch в UI немедленно, не дожидаясь конца топика
-                        Platform.runLater(() -> onBatch.accept(batch));
+                        if (!batch.isEmpty()) {
+                            // Передаём batch в UI немедленно, не дожидаясь конца топика
+                            Platform.runLater(() -> onBatch.accept(batch));
+                        }
+                        if (collected >= maxMessages) break;
                     }
 
                     boolean reachedEnd = partitions.stream().allMatch(tp ->
@@ -191,10 +203,11 @@ public class KafkaService {
 
     public CompletableFuture<Void> sendMessage(String topic, String key, String value) {
         return CompletableFuture.runAsync(() -> {
-            try (KafkaProducer<String, String> producer = new KafkaProducer<>(buildProducerProps())) {
+            try {
+                KafkaProducer<String, String> p = getOrCreateProducer();
                 String resolvedKey = (key == null || key.isBlank()) ? null : key;
                 ProducerRecord<String, String> record = new ProducerRecord<>(topic, resolvedKey, value);
-                producer.send(record).get(); // .get() блокирует до подтверждения; flush() не нужен
+                p.send(record).get(); // .get() блокирует до подтверждения; flush() не нужен
                 log.info("Сообщение отправлено в топик '{}'", topic);
             } catch (Exception e) {
                 log.error("Не удалось отправить сообщение в топик '{}'", topic, e);
@@ -210,9 +223,16 @@ public class KafkaService {
 
     public void shutdown() {
         fetchCancelled = true;
+        // Закрываем producer на executor-потоке перед остановкой
+        executor.submit(() -> {
+            if (producer != null) {
+                producer.close(Duration.ofSeconds(2));
+                producer = null;
+            }
+        });
         executor.shutdown();
         try {
-            if (!executor.awaitTermination(3, TimeUnit.SECONDS)) {
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
                 executor.shutdownNow();
             }
         } catch (InterruptedException ignored) {
@@ -224,6 +244,20 @@ public class KafkaService {
     // -----------------------------------------------------------------------
     // Вспомогательные методы построения конфигурации
     // -----------------------------------------------------------------------
+
+    /**
+     * Возвращает переиспользуемый Producer, пересоздавая его при смене bootstrap-серверов.
+     * Вызывается только на executor-потоке.
+     */
+    private KafkaProducer<String, String> getOrCreateProducer() {
+        String bootstrap = settings.getBootstrapServers();
+        if (producer == null || !bootstrap.equals(producerBootstrap)) {
+            if (producer != null) producer.close(Duration.ZERO);
+            producer = new KafkaProducer<>(buildProducerProps());
+            producerBootstrap = bootstrap;
+        }
+        return producer;
+    }
 
     private Properties buildAdminProps() {
         Properties props = new Properties();

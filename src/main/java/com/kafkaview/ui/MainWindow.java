@@ -54,9 +54,6 @@ public class MainWindow {
         primaryStage.setMinWidth(750);
         primaryStage.setMinHeight(450);
 
-        // Корректное завершение фонового потока при закрытии окна
-        primaryStage.setOnCloseRequest(e -> kafkaService.shutdown());
-
         primaryStage.show();
     }
 

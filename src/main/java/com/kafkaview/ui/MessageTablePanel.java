@@ -23,18 +23,12 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
 public class MessageTablePanel {
 
     private static final int PAGE_SIZE = 30;
-    private static final DateTimeFormatter TS_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
     private final KafkaService kafkaService;
 
@@ -79,7 +73,8 @@ public class MessageTablePanel {
                 buildValueColumn(),
                 buildKeyColumn(),
                 buildTimestampColumn(),
-                buildPartitionColumn()
+                buildPartitionColumn(),
+                buildOffsetColumn()
         );
 
         // Двойной клик — открыть детальное окно
@@ -159,9 +154,6 @@ public class MessageTablePanel {
                 batch -> {
                     if (generation != myGen) return; // устаревший fetch — игнорируем
                     allMessages.addAll(batch);
-                    if (tableView.getComparator() != null) {
-                        allMessages.sort(tableView.getComparator());
-                    }
                     refreshPage();
                     statusLabel.setText("Загружено: " + allMessages.size() + "…");
                 },
@@ -169,6 +161,11 @@ public class MessageTablePanel {
                 // onComplete: вызывается на FX-потоке когда всё прочитано
                 () -> {
                     if (generation != myGen) return;
+                    // Применяем сортировку один раз по завершению загрузки
+                    if (tableView.getComparator() != null) {
+                        allMessages.sort(tableView.getComparator());
+                        refreshPage();
+                    }
                     statusLabel.setText(allMessages.isEmpty()
                             ? "Топик \"" + topic + "\" пуст"
                             : "Всего сообщений: " + allMessages.size());
@@ -223,7 +220,7 @@ public class MessageTablePanel {
     private TableColumn<KafkaMessage, String> buildValueColumn() {
         TableColumn<KafkaMessage, String> col = new TableColumn<>("Сообщение");
         col.setCellValueFactory(data -> data.getValue().valueProperty());
-        col.setPrefWidth(460);
+        col.setPrefWidth(420);
         col.setComparator(String::compareToIgnoreCase);
 
         col.setCellFactory(c -> new TableCell<>() {
@@ -283,12 +280,10 @@ public class MessageTablePanel {
             @Override
             protected void updateItem(Long ts, boolean empty) {
                 super.updateItem(ts, empty);
-                if (empty || ts == null || ts <= 0) {
+                if (empty || ts == null) {
                     setText(null);
                 } else {
-                    LocalDateTime ldt = LocalDateTime.ofInstant(
-                            Instant.ofEpochMilli(ts), ZoneId.systemDefault());
-                    setText(ldt.format(TS_FORMATTER));
+                    setText(KafkaMessage.formatTimestamp(ts));
                 }
             }
         });
@@ -303,6 +298,16 @@ public class MessageTablePanel {
         col.setMinWidth(70);
         col.setMaxWidth(120);
         col.setStyle("-fx-alignment: CENTER;");
+        return col;
+    }
+
+    private TableColumn<KafkaMessage, Long> buildOffsetColumn() {
+        TableColumn<KafkaMessage, Long> col = new TableColumn<>("Offset");
+        col.setCellValueFactory(data -> data.getValue().offsetProperty().asObject());
+        col.setPrefWidth(90);
+        col.setMinWidth(70);
+        col.setMaxWidth(130);
+        col.setStyle("-fx-alignment: CENTER_RIGHT;");
         return col;
     }
 }
