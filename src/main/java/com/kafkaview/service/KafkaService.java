@@ -21,10 +21,10 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -84,16 +84,21 @@ public class KafkaService {
     // Проверка соединения
     // -----------------------------------------------------------------------
 
-    public CompletableFuture<Boolean> testConnection() {
+    /**
+     * Проверяет соединение с указанными bootstrap-серверами без изменения текущих настроек.
+     */
+    public CompletableFuture<Boolean> testConnection(String bootstrapServers) {
         return CompletableFuture.supplyAsync(() -> {
-            Properties props = buildAdminProps();
+            Properties props = new Properties();
+            props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
             props.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, "5000");
             props.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, "5000");
+            props.put(AdminClientConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG, "5000");
             try (AdminClient admin = AdminClient.create(props)) {
                 admin.listTopics(new ListTopicsOptions().timeoutMs(5000))
                         .names()
                         .get(7, TimeUnit.SECONDS);
-                log.info("Проверка соединения успешна: {}", settings.getBootstrapServers());
+                log.info("Проверка соединения успешна: {}", bootstrapServers);
                 return true;
             } catch (Exception e) {
                 log.warn("Проверка соединения не удалась: {}", e.getMessage());
@@ -135,27 +140,30 @@ public class KafkaService {
                 consumer.assign(partitions);
 
                 Map<TopicPartition, Long> endOffsets = consumer.endOffsets(partitions);
+                Map<TopicPartition, Long> beginOffsets = consumer.beginningOffsets(partitions);
 
-                // Пустой топик — завершаем сразу
-                long totalAvailable = endOffsets.values().stream()
-                        .mapToLong(Long::longValue).sum();
+                // Пустой топик — завершаем сразу (учитываем retention: end == begin)
+                long totalAvailable = partitions.stream()
+                        .mapToLong(tp -> Math.max(0,
+                                endOffsets.getOrDefault(tp, 0L) - beginOffsets.getOrDefault(tp, 0L)))
+                        .sum();
                 if (totalAvailable == 0) {
                     Platform.runLater(onComplete);
                     return;
                 }
 
-                // Умный seek: начинаем с offset = endOffset - maxPerPartition,
-                // чтобы читать только последние N сообщений без просмотра всего топика
+                // Seek: начинаем с конца минус квота, перераспределяя квоту
+                // от малозаполненных партиций к заполненным.
                 int maxMessages = settings.getMaxMessages();
-                int maxPerPartition = Math.max(1,
-                        maxMessages / Math.max(1, partitions.size()));
+                Map<TopicPartition, Long> seekQuota =
+                        distributeQuota(partitions, beginOffsets, endOffsets, maxMessages);
                 for (TopicPartition tp : partitions) {
                     long end = endOffsets.getOrDefault(tp, 0L);
-                    consumer.seek(tp, Math.max(0, end - maxPerPartition));
+                    consumer.seek(tp, Math.max(0, end - seekQuota.getOrDefault(tp, 0L)));
                 }
 
-                log.debug("Загрузка топика '{}': {} партиций, ~{} сообщений на партицию",
-                        topic, partitions.size(), maxPerPartition);
+                log.debug("Загрузка топика '{}': {} партиций, квота {} сообщений (доступно: {})",
+                        topic, partitions.size(), maxMessages, totalAvailable);
 
                 // Основной цикл чтения — каждый batch сразу отправляем в UI
                 int collected = 0;
@@ -281,15 +289,57 @@ public class KafkaService {
     private Properties buildConsumerProps() {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, settings.getBootstrapServers());
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "kafkaview-" + UUID.randomUUID());
+        // Фиксированный group ID: используем assign(), group coordinator не задействован,
+        // но GROUP_ID требуется некоторыми брокерами для AdminAPI-совместимости.
+        // UUID не нужен — одна постоянная группа не засоряет метаданные кластера.
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "kafkaview-readonly");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "500");
-        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, "10000");
         props.put(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, "15000");
         props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, "500");
         return props;
+    }
+
+    /**
+     * Распределяет квоту {@code maxMessages} по партициям с перераспределением
+     * от малозаполненных партиций (у которых сообщений меньше равной доли)
+     * к более заполненным, чтобы в сумме загружалось как можно ближе к лимиту.
+     */
+    private Map<TopicPartition, Long> distributeQuota(
+            List<TopicPartition> partitions,
+            Map<TopicPartition, Long> beginOffsets,
+            Map<TopicPartition, Long> endOffsets,
+            int maxMessages) {
+
+        Map<TopicPartition, Long> quota = new HashMap<>();
+        List<TopicPartition> toDistribute = new ArrayList<>(partitions);
+        int remaining = maxMessages;
+
+        while (!toDistribute.isEmpty() && remaining > 0) {
+            int perPartition = Math.max(1, remaining / toDistribute.size());
+            List<TopicPartition> capped = new ArrayList<>();
+            for (TopicPartition tp : toDistribute) {
+                long avail = Math.max(0,
+                        endOffsets.getOrDefault(tp, 0L) - beginOffsets.getOrDefault(tp, 0L));
+                if (avail <= perPartition) {
+                    quota.put(tp, avail);
+                    remaining -= avail;
+                    capped.add(tp);
+                }
+            }
+            if (capped.isEmpty()) {
+                // Все оставшиеся партиции могут принять свою долю
+                for (TopicPartition tp : toDistribute) {
+                    quota.put(tp, (long) perPartition);
+                }
+                break;
+            }
+            toDistribute.removeAll(capped);
+        }
+
+        return quota;
     }
 }

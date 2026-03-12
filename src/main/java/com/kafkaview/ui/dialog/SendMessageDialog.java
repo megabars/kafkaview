@@ -108,7 +108,7 @@ public class SendMessageDialog {
 
     private void onSend() {
         String value = valueArea.getText();
-        if (value == null || value.isBlank()) {
+        if (value.isBlank()) {
             validationLabel.setText("Сообщение не может быть пустым");
             return;
         }

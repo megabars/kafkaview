@@ -128,15 +128,12 @@ public class SettingsDialog {
         }
 
         testButton.setDisable(true);
-        okButton.setDisable(true); // блокируем OK пока идёт тест, чтобы избежать race condition
+        okButton.setDisable(true);
         testResultLabel.setText("Проверка...");
         testResultLabel.setTextFill(Color.GRAY);
 
-        // Временно применяем введённое значение для теста
-        String previous = settings.getBootstrapServers();
-        settings.setBootstrapServers(value);
-
-        kafkaService.testConnection()
+        // Передаём адрес напрямую — settings не трогаем до нажатия OK
+        kafkaService.testConnection(value)
                 .thenAcceptAsync(success -> {
                     if (success) {
                         testResultLabel.setText("Соединение успешно");
@@ -145,8 +142,6 @@ public class SettingsDialog {
                         testResultLabel.setText("Соединение не установлено");
                         testResultLabel.setTextFill(Color.RED);
                     }
-                    // Всегда откатываем — сохранение происходит только при нажатии OK
-                    settings.setBootstrapServers(previous);
                     testButton.setDisable(false);
                     okButton.setDisable(false);
                 }, Platform::runLater);

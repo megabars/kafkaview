@@ -5,7 +5,6 @@ import com.kafkaview.service.KafkaService;
 import com.kafkaview.ui.dialog.SettingsDialog;
 import javafx.application.Platform;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
@@ -86,11 +85,4 @@ public class MainWindow {
         }
     }
 
-    public static void showError(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle(title);
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
-    }
 }

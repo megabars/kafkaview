@@ -187,8 +187,19 @@ public class MessageDetailDialog {
         if (raw == null || raw.isBlank()) return raw;
         try {
             String trimmed = raw.strip();
-            if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null;
-            return prettyPrintJson(trimmed);
+            if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+                return prettyPrintJson(trimmed);
+            }
+            // JSON-примитивы (строка, число, булево, null) не требуют форматирования,
+            // но являются валидным JSON — возвращаем как есть вместо «невалидный JSON»
+            if (trimmed.startsWith("\"")
+                    || trimmed.equals("null")
+                    || trimmed.equals("true")
+                    || trimmed.equals("false")
+                    || (!trimmed.isEmpty() && (trimmed.charAt(0) == '-' || Character.isDigit(trimmed.charAt(0))))) {
+                return trimmed;
+            }
+            return null;
         } catch (Exception e) {
             return null;
         }

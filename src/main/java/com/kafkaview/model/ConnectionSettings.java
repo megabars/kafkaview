@@ -30,6 +30,6 @@ public class ConnectionSettings {
     }
 
     public boolean isConfigured() {
-        return bootstrapServers != null && !bootstrapServers.isBlank();
+        return !bootstrapServers.isBlank();
     }
 }
