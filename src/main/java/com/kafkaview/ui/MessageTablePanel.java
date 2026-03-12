@@ -16,7 +16,6 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.Tooltip;
-import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -57,6 +56,10 @@ public class MessageTablePanel {
     private int currentPage = 0;
     private String currentTopic = null;
 
+    // Счётчик поколений: при каждом новом loadMessages() инкрементируется,
+    // чтобы устаревшие batch-коллбэки из предыдущего fetch игнорировались.
+    private int generation = 0;
+
     public MessageTablePanel(KafkaService kafkaService) {
         this.kafkaService = kafkaService;
 
@@ -74,6 +77,7 @@ public class MessageTablePanel {
 
         tableView.getColumns().addAll(
                 buildValueColumn(),
+                buildKeyColumn(),
                 buildTimestampColumn(),
                 buildPartitionColumn()
         );
@@ -133,6 +137,10 @@ public class MessageTablePanel {
     }
 
     public void loadMessages(String topic) {
+        // Отменяем предыдущий fetch и захватываем поколение для этого запроса
+        kafkaService.cancelFetch();
+        final int myGen = ++generation;
+
         currentTopic = topic;
         sendButton.setDisable(false);
         titleLabel.setText("Сообщения — " + topic);
@@ -149,8 +157,8 @@ public class MessageTablePanel {
 
                 // onBatch: вызывается на FX-потоке сразу после каждого poll
                 batch -> {
+                    if (generation != myGen) return; // устаревший fetch — игнорируем
                     allMessages.addAll(batch);
-                    // Если пользователь уже выбрал сортировку — применяем на лету
                     if (tableView.getComparator() != null) {
                         allMessages.sort(tableView.getComparator());
                     }
@@ -160,6 +168,7 @@ public class MessageTablePanel {
 
                 // onComplete: вызывается на FX-потоке когда всё прочитано
                 () -> {
+                    if (generation != myGen) return;
                     statusLabel.setText(allMessages.isEmpty()
                             ? "Топик \"" + topic + "\" пуст"
                             : "Всего сообщений: " + allMessages.size());
@@ -167,6 +176,7 @@ public class MessageTablePanel {
 
                 // onError
                 error -> {
+                    if (generation != myGen) return;
                     Throwable cause = error.getCause() != null ? error.getCause() : error;
                     statusLabel.setText("Ошибка загрузки: " + cause.getMessage());
                     statusLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #cc0000;");
@@ -212,8 +222,8 @@ public class MessageTablePanel {
 
     private TableColumn<KafkaMessage, String> buildValueColumn() {
         TableColumn<KafkaMessage, String> col = new TableColumn<>("Сообщение");
-        col.setCellValueFactory(new PropertyValueFactory<>("value"));
-        col.setPrefWidth(500);
+        col.setCellValueFactory(data -> data.getValue().valueProperty());
+        col.setPrefWidth(460);
         col.setComparator(String::compareToIgnoreCase);
 
         col.setCellFactory(c -> new TableCell<>() {
@@ -229,6 +239,31 @@ public class MessageTablePanel {
                     setText(item.length() > 120 ? item.substring(0, 120) + "…" : item);
                     tooltip.setText(item.length() > 300 ? item.substring(0, 300) + "…" : item);
                     setTooltip(tooltip);
+                }
+            }
+        });
+
+        return col;
+    }
+
+    private TableColumn<KafkaMessage, String> buildKeyColumn() {
+        TableColumn<KafkaMessage, String> col = new TableColumn<>("Ключ");
+        col.setCellValueFactory(data -> data.getValue().keyProperty());
+        col.setPrefWidth(120);
+        col.setMinWidth(60);
+        col.setMaxWidth(200);
+        col.setComparator(String::compareToIgnoreCase);
+
+        col.setCellFactory(c -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null || item.isEmpty()) {
+                    setText(null);
+                    setStyle("-fx-text-fill: #aaaaaa;");
+                } else {
+                    setText(item.length() > 40 ? item.substring(0, 40) + "…" : item);
+                    setStyle("");
                 }
             }
         });
@@ -263,7 +298,7 @@ public class MessageTablePanel {
 
     private TableColumn<KafkaMessage, Integer> buildPartitionColumn() {
         TableColumn<KafkaMessage, Integer> col = new TableColumn<>("Партиция");
-        col.setCellValueFactory(new PropertyValueFactory<>("partition"));
+        col.setCellValueFactory(data -> data.getValue().partitionProperty().asObject());
         col.setPrefWidth(80);
         col.setMinWidth(70);
         col.setMaxWidth(120);

@@ -2,13 +2,15 @@ package com.kafkaview.model;
 
 public class ConnectionSettings {
 
-    private static final String DEFAULT_BOOTSTRAP = "localhost:9092";
-    private static final int MAX_MESSAGES = 100;
+    public static final String DEFAULT_BOOTSTRAP   = "localhost:9092";
+    public static final int    DEFAULT_MAX_MESSAGES = 100;
 
     private volatile String bootstrapServers;
+    private volatile int    maxMessages;
 
     public ConnectionSettings() {
         this.bootstrapServers = DEFAULT_BOOTSTRAP;
+        this.maxMessages      = DEFAULT_MAX_MESSAGES;
     }
 
     public String getBootstrapServers() {
@@ -20,7 +22,11 @@ public class ConnectionSettings {
     }
 
     public int getMaxMessages() {
-        return MAX_MESSAGES;
+        return maxMessages;
+    }
+
+    public void setMaxMessages(int maxMessages) {
+        this.maxMessages = Math.max(1, maxMessages);
     }
 
     public boolean isConfigured() {

@@ -1,11 +1,11 @@
 package com.kafkaview.model;
 
-import javafx.beans.property.IntegerProperty;
-import javafx.beans.property.LongProperty;
+import javafx.beans.property.ReadOnlyIntegerProperty;
+import javafx.beans.property.ReadOnlyLongProperty;
+import javafx.beans.property.ReadOnlyStringProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleLongProperty;
 import javafx.beans.property.SimpleStringProperty;
-import javafx.beans.property.StringProperty;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -17,14 +17,26 @@ public class KafkaMessage {
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
+    private final SimpleStringProperty key;
     private final SimpleStringProperty value;
     private final SimpleLongProperty timestamp;
     private final SimpleIntegerProperty partition;
 
-    public KafkaMessage(String value, long timestamp, int partition) {
-        this.value = new SimpleStringProperty(value != null ? value : "");
+    public KafkaMessage(String key, String value, long timestamp, int partition) {
+        this.key       = new SimpleStringProperty(key   != null ? key   : "");
+        this.value     = new SimpleStringProperty(value != null ? value : "");
         this.timestamp = new SimpleLongProperty(timestamp);
         this.partition = new SimpleIntegerProperty(partition);
+    }
+
+    // --- key ---
+
+    public String getKey() {
+        return key.get();
+    }
+
+    public ReadOnlyStringProperty keyProperty() {
+        return key;
     }
 
     // --- value ---
@@ -33,11 +45,7 @@ public class KafkaMessage {
         return value.get();
     }
 
-    public void setValue(String value) {
-        this.value.set(value);
-    }
-
-    public StringProperty valueProperty() {
+    public ReadOnlyStringProperty valueProperty() {
         return value;
     }
 
@@ -47,11 +55,7 @@ public class KafkaMessage {
         return timestamp.get();
     }
 
-    public void setTimestamp(long ts) {
-        this.timestamp.set(ts);
-    }
-
-    public LongProperty timestampProperty() {
+    public ReadOnlyLongProperty timestampProperty() {
         return timestamp;
     }
 
@@ -61,11 +65,7 @@ public class KafkaMessage {
         return partition.get();
     }
 
-    public void setPartition(int partition) {
-        this.partition.set(partition);
-    }
-
-    public IntegerProperty partitionProperty() {
+    public ReadOnlyIntegerProperty partitionProperty() {
         return partition;
     }
 

@@ -25,7 +25,9 @@ public class SettingsDialog {
 
     private Stage dialogStage;
     private TextField bootstrapField;
+    private TextField maxMessagesField;
     private Button testButton;
+    private Button okButton;
     private Label testResultLabel;
     private Label validationLabel;
 
@@ -41,7 +43,7 @@ public class SettingsDialog {
         dialogStage.initModality(Modality.APPLICATION_MODAL);
         dialogStage.setResizable(false);
 
-        dialogStage.setScene(new Scene(buildContent(), 480, 220));
+        dialogStage.setScene(new Scene(buildContent(), 480, 300));
     }
 
     /**
@@ -54,11 +56,12 @@ public class SettingsDialog {
     }
 
     private VBox buildContent() {
-        Label title = new Label("Bootstrap Server(s)");
-        title.setFont(Font.font(null, FontWeight.BOLD, 13));
+        // --- Bootstrap servers ---
+        Label bootstrapTitle = new Label("Bootstrap Server(s)");
+        bootstrapTitle.setFont(Font.font(null, FontWeight.BOLD, 13));
 
-        Label hint = new Label("Пример: localhost:9092  или  host1:9092,host2:9092");
-        hint.setStyle("-fx-font-size: 11px; -fx-text-fill: #888888;");
+        Label bootstrapHint = new Label("Пример: localhost:9092  или  host1:9092,host2:9092");
+        bootstrapHint.setStyle("-fx-font-size: 11px; -fx-text-fill: #888888;");
 
         bootstrapField = new TextField(settings.getBootstrapServers());
         bootstrapField.setPromptText("host:port");
@@ -72,10 +75,22 @@ public class SettingsDialog {
         testRow.setAlignment(Pos.CENTER_LEFT);
         testButton.setOnAction(e -> onTestConnection());
 
+        // --- Max messages ---
+        Label maxLabel = new Label("Максимум сообщений");
+        maxLabel.setFont(Font.font(null, FontWeight.BOLD, 13));
+
+        Label maxHint = new Label("Сколько последних сообщений загружать из топика (1–10 000)");
+        maxHint.setStyle("-fx-font-size: 11px; -fx-text-fill: #888888;");
+
+        maxMessagesField = new TextField(String.valueOf(settings.getMaxMessages()));
+        maxMessagesField.setPromptText("100");
+        maxMessagesField.setPrefWidth(100);
+        maxMessagesField.setMaxWidth(100);
+
         validationLabel = new Label();
         validationLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #cc0000;");
 
-        Button okButton = new Button("OK");
+        okButton = new Button("OK");
         okButton.setDefaultButton(true);
         okButton.setPrefWidth(80);
         okButton.setOnAction(e -> onConfirm());
@@ -87,11 +102,15 @@ public class SettingsDialog {
         HBox buttons = new HBox(10, cancelButton, okButton);
         buttons.setAlignment(Pos.CENTER_RIGHT);
 
-        VBox content = new VBox(10,
-                title,
-                hint,
+        VBox content = new VBox(8,
+                bootstrapTitle,
+                bootstrapHint,
                 bootstrapField,
                 testRow,
+                new Separator(),
+                maxLabel,
+                maxHint,
+                maxMessagesField,
                 validationLabel,
                 new Separator(),
                 buttons
@@ -109,6 +128,7 @@ public class SettingsDialog {
         }
 
         testButton.setDisable(true);
+        okButton.setDisable(true); // блокируем OK пока идёт тест, чтобы избежать race condition
         testResultLabel.setText("Проверка...");
         testResultLabel.setTextFill(Color.GRAY);
 
@@ -128,16 +148,32 @@ public class SettingsDialog {
                         settings.setBootstrapServers(previous);
                     }
                     testButton.setDisable(false);
+                    okButton.setDisable(false);
                 }, Platform::runLater);
     }
 
     private void onConfirm() {
-        String value = bootstrapField.getText().trim();
-        if (value.isEmpty()) {
+        String bootstrap = bootstrapField.getText().trim();
+        if (bootstrap.isEmpty()) {
             validationLabel.setText("Адрес сервера не может быть пустым");
             return;
         }
-        settings.setBootstrapServers(value);
+
+        String maxStr = maxMessagesField.getText().trim();
+        int maxMessages;
+        try {
+            maxMessages = Integer.parseInt(maxStr);
+            if (maxMessages < 1 || maxMessages > 10_000) {
+                validationLabel.setText("Максимум сообщений: от 1 до 10 000");
+                return;
+            }
+        } catch (NumberFormatException e) {
+            validationLabel.setText("Максимум сообщений: введите целое число");
+            return;
+        }
+
+        settings.setBootstrapServers(bootstrap);
+        settings.setMaxMessages(maxMessages);
         confirmed = true;
         dialogStage.close();
     }

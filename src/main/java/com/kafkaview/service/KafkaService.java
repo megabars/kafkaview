@@ -16,6 +16,8 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -33,11 +35,16 @@ import java.util.stream.Collectors;
 
 public class KafkaService {
 
+    private static final Logger log = LoggerFactory.getLogger(KafkaService.class);
+
     private static final Duration POLL_TIMEOUT = Duration.ofMillis(500);
     private static final int ADMIN_TIMEOUT_MS = 10_000;
 
     private final ConnectionSettings settings;
     private final ExecutorService executor;
+
+    // Флаг отмены текущего fetch. Volatile — читается на executor-потоке, пишется на FX-потоке.
+    private volatile boolean fetchCancelled = false;
 
     public KafkaService(ConnectionSettings settings) {
         this.settings = settings;
@@ -63,6 +70,7 @@ public class KafkaService {
                         .sorted()
                         .collect(Collectors.toList());
             } catch (Exception e) {
+                log.error("Не удалось получить список топиков", e);
                 throw new RuntimeException("Не удалось получить список топиков: " + e.getMessage(), e);
             }
         }, executor);
@@ -81,8 +89,10 @@ public class KafkaService {
                 admin.listTopics(new ListTopicsOptions().timeoutMs(5000))
                         .names()
                         .get(7, TimeUnit.SECONDS);
+                log.info("Проверка соединения успешна: {}", settings.getBootstrapServers());
                 return true;
             } catch (Exception e) {
+                log.warn("Проверка соединения не удалась: {}", e.getMessage());
                 return false;
             }
         }, executor);
@@ -91,10 +101,18 @@ public class KafkaService {
     // -----------------------------------------------------------------------
     // Потоковая загрузка сообщений: каждый batch отправляется в UI сразу
     //
-    // onBatch   — вызывается на FX-потоке после каждого poll с новыми записями
+    // onBatch    — вызывается на FX-потоке после каждого poll с новыми записями
     // onComplete — вызывается на FX-потоке когда все сообщения прочитаны
-    // onError   — вызывается на FX-потоке при ошибке
+    // onError    — вызывается на FX-потоке при ошибке
     // -----------------------------------------------------------------------
+
+    /**
+     * Сбрасывает флаг отмены. Вызывается перед началом нового fetch,
+     * чтобы прерванный предыдущий fetch остановился на следующей итерации.
+     */
+    public void cancelFetch() {
+        fetchCancelled = true;
+    }
 
     public void fetchMessagesStreaming(
             String topic,
@@ -103,6 +121,7 @@ public class KafkaService {
             Consumer<Throwable> onError) {
 
         executor.submit(() -> {
+            fetchCancelled = false; // сброс в начале каждого fetch (на executor-потоке)
             try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(buildConsumerProps())) {
                 // assign() вместо subscribe() — обходим group coordinator и rebalance delay (3с)
                 // partitionsFor() делает быстрый metadata-запрос к брокеру
@@ -123,20 +142,24 @@ public class KafkaService {
 
                 // Умный seek: начинаем с offset = endOffset - maxPerPartition,
                 // чтобы читать только последние N сообщений без просмотра всего топика
-                int maxPerPartition = Math.max(1, settings.getMaxMessages() / Math.max(1, partitions.size()));
+                int maxPerPartition = Math.max(1,
+                        settings.getMaxMessages() / Math.max(1, partitions.size()));
                 for (TopicPartition tp : partitions) {
                     long end = endOffsets.getOrDefault(tp, 0L);
                     consumer.seek(tp, Math.max(0, end - maxPerPartition));
                 }
 
+                log.debug("Загрузка топика '{}': {} партиций, ~{} сообщений на партицию",
+                        topic, partitions.size(), maxPerPartition);
+
                 // Основной цикл чтения — каждый batch сразу отправляем в UI
-                while (true) {
+                while (!fetchCancelled) {
                     ConsumerRecords<String, String> records = consumer.poll(POLL_TIMEOUT);
 
                     if (!records.isEmpty()) {
                         List<KafkaMessage> batch = new ArrayList<>(records.count());
                         for (ConsumerRecord<String, String> r : records) {
-                            batch.add(new KafkaMessage(r.value(), r.timestamp(), r.partition()));
+                            batch.add(new KafkaMessage(r.key(), r.value(), r.timestamp(), r.partition()));
                         }
                         // Передаём batch в UI немедленно, не дожидаясь конца топика
                         Platform.runLater(() -> onBatch.accept(batch));
@@ -147,12 +170,17 @@ public class KafkaService {
                     if (reachedEnd) break;
                 }
 
-                Platform.runLater(onComplete);
+                if (!fetchCancelled) {
+                    Platform.runLater(onComplete);
+                }
 
             } catch (Exception e) {
-                Platform.runLater(() -> onError.accept(
-                        new RuntimeException("Не удалось загрузить сообщения из топика \""
-                                + topic + "\": " + e.getMessage(), e)));
+                if (!fetchCancelled) {
+                    log.error("Ошибка загрузки сообщений из топика '{}'", topic, e);
+                    Platform.runLater(() -> onError.accept(
+                            new RuntimeException("Не удалось загрузить сообщения из топика \""
+                                    + topic + "\": " + e.getMessage(), e)));
+                }
             }
         });
     }
@@ -166,9 +194,10 @@ public class KafkaService {
             try (KafkaProducer<String, String> producer = new KafkaProducer<>(buildProducerProps())) {
                 String resolvedKey = (key == null || key.isBlank()) ? null : key;
                 ProducerRecord<String, String> record = new ProducerRecord<>(topic, resolvedKey, value);
-                producer.send(record).get();
-                producer.flush();
+                producer.send(record).get(); // .get() блокирует до подтверждения; flush() не нужен
+                log.info("Сообщение отправлено в топик '{}'", topic);
             } catch (Exception e) {
+                log.error("Не удалось отправить сообщение в топик '{}'", topic, e);
                 throw new RuntimeException("Не удалось отправить сообщение в топик \""
                         + topic + "\": " + e.getMessage(), e);
             }
@@ -180,10 +209,14 @@ public class KafkaService {
     // -----------------------------------------------------------------------
 
     public void shutdown() {
-        executor.shutdownNow();
+        fetchCancelled = true;
+        executor.shutdown();
         try {
-            executor.awaitTermination(3, TimeUnit.SECONDS);
+            if (!executor.awaitTermination(3, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
         } catch (InterruptedException ignored) {
+            executor.shutdownNow();
             Thread.currentThread().interrupt();
         }
     }

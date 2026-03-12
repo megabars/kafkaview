@@ -19,6 +19,7 @@ import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
+import javax.xml.XMLConstants;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Source;
 import javax.xml.transform.Transformer;
@@ -50,10 +51,10 @@ public class MessageDetailDialog {
             dialogStage.initModality(Modality.WINDOW_MODAL);
         }
 
-        Scene scene = new Scene(buildContent(), 680, 520);
+        Scene scene = new Scene(buildContent(), 680, 560);
         dialogStage.setScene(scene);
         dialogStage.setMinWidth(500);
-        dialogStage.setMinHeight(380);
+        dialogStage.setMinHeight(420);
     }
 
     public void show() {
@@ -71,10 +72,13 @@ public class MessageDetailDialog {
         valueCol.setHgrow(Priority.ALWAYS);
         meta.getColumnConstraints().addAll(labelCol, valueCol);
 
-        meta.add(bold("Партиция:"),   0, 0);
-        meta.add(value(String.valueOf(message.getPartition())), 1, 0);
-        meta.add(bold("Дата/время:"), 0, 1);
-        meta.add(value(message.getFormattedTimestamp()), 1, 1);
+        String keyText = message.getKey().isEmpty() ? "—" : message.getKey();
+        meta.add(bold("Ключ:"),       0, 0);
+        meta.add(value(keyText),      1, 0);
+        meta.add(bold("Партиция:"),   0, 1);
+        meta.add(value(String.valueOf(message.getPartition())), 1, 1);
+        meta.add(bold("Дата/время:"), 0, 2);
+        meta.add(value(message.getFormattedTimestamp()), 1, 2);
 
         // --- Заголовок + выбор формата ---
         Label contentLabel = new Label("Содержимое сообщения:");
@@ -261,6 +265,7 @@ public class MessageDetailDialog {
 
     // -----------------------------------------------------------------------
     // XML formatter (стандартный Java XML API)
+    // FEATURE_SECURE_PROCESSING запрещает external entity references (XXE)
     // -----------------------------------------------------------------------
 
     private String formatXml(String raw) {
@@ -269,6 +274,7 @@ public class MessageDetailDialog {
             Source xmlInput = new StreamSource(new StringReader(raw.strip()));
             StringWriter output = new StringWriter();
             TransformerFactory factory = TransformerFactory.newInstance();
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
             factory.setAttribute("indent-number", 4);
             Transformer transformer = factory.newTransformer();
             transformer.setOutputProperty(OutputKeys.INDENT, "yes");
