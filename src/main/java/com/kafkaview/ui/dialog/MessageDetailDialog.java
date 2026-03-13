@@ -53,7 +53,7 @@ public class MessageDetailDialog {
     }
 
     private final KafkaMessage message;
-    private Stage dialogStage;
+    private final Stage dialogStage;
 
     private TextArea textArea;
     private Label errorLabel;
@@ -75,7 +75,7 @@ public class MessageDetailDialog {
     }
 
     public void show() {
-        dialogStage.show();
+        dialogStage.showAndWait();
     }
 
     private VBox buildContent() {
@@ -203,7 +203,7 @@ public class MessageDetailDialog {
     // -----------------------------------------------------------------------
 
     private String formatJson(String raw) {
-        if (raw == null || raw.isBlank()) return raw;
+        if (raw == null || raw.isBlank()) return null;
         try {
             String trimmed = raw.strip();
             if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
@@ -300,7 +300,7 @@ public class MessageDetailDialog {
     // -----------------------------------------------------------------------
 
     private String formatXml(String raw) {
-        if (raw == null || raw.isBlank()) return raw;
+        if (raw == null || raw.isBlank()) return null;
         try {
             Source xmlInput = new StreamSource(new StringReader(raw.strip()));
             StringWriter output = new StringWriter();

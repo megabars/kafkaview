@@ -17,8 +17,6 @@ import java.util.function.Consumer;
 
 public class TopicListPanel {
 
-    private static final String STYLE_STATUS_NORMAL = "-fx-font-size: 11px; -fx-text-fill: #666666;";
-    private static final String STYLE_STATUS_ERROR  = "-fx-font-size: 11px; -fx-text-fill: #cc0000;";
 
     private final KafkaService kafkaService;
 
@@ -41,7 +39,7 @@ public class TopicListPanel {
 
         statusLabel = new Label();
         statusLabel.setWrapText(true);
-        statusLabel.setStyle(STYLE_STATUS_NORMAL);
+        statusLabel.getStyleClass().add("status-label");
 
         refreshButton = new Button("Обновить");
         refreshButton.setMaxWidth(Double.MAX_VALUE);
@@ -92,12 +90,18 @@ public class TopicListPanel {
     }
 
     private void setStatusNormal(String text) {
-        statusLabel.setStyle(STYLE_STATUS_NORMAL);
+        statusLabel.getStyleClass().remove("status-label-error");
+        if (!statusLabel.getStyleClass().contains("status-label")) {
+            statusLabel.getStyleClass().add("status-label");
+        }
         statusLabel.setText(text);
     }
 
     private void setStatusError(String text) {
-        statusLabel.setStyle(STYLE_STATUS_ERROR);
+        statusLabel.getStyleClass().remove("status-label");
+        if (!statusLabel.getStyleClass().contains("status-label-error")) {
+            statusLabel.getStyleClass().add("status-label-error");
+        }
         statusLabel.setText(text);
     }
 }

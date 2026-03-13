@@ -20,13 +20,11 @@ import javafx.stage.Stage;
 
 public class SendMessageDialog {
 
-    private static final String STYLE_STATUS_NORMAL = "-fx-font-size: 12px; -fx-text-fill: #888888;";
-    private static final String STYLE_STATUS_ERROR  = "-fx-font-size: 12px; -fx-text-fill: #cc0000;";
 
     private final KafkaService kafkaService;
     private final String topic;
 
-    private Stage dialogStage;
+    private final Stage dialogStage;
     private TextField keyField;
     private TextArea valueArea;
     private Button sendButton;
@@ -75,10 +73,10 @@ public class SendMessageDialog {
         VBox.setVgrow(valueArea, Priority.ALWAYS);
 
         validationLabel = new Label();
-        validationLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #cc0000;");
+        validationLabel.getStyleClass().add("status-label-error");
 
         statusLabel = new Label();
-        statusLabel.setStyle("-fx-font-size: 12px;");
+        statusLabel.getStyleClass().add("status-label");
 
         sendButton = new Button("Отправить");
         sendButton.setDefaultButton(true);
@@ -120,7 +118,10 @@ public class SendMessageDialog {
 
         sendButton.setDisable(true);
         cancelButton.setDisable(true);
-        statusLabel.setStyle(STYLE_STATUS_NORMAL);
+        statusLabel.getStyleClass().remove("status-label-error");
+        if (!statusLabel.getStyleClass().contains("status-label")) {
+            statusLabel.getStyleClass().add("status-label");
+        }
         statusLabel.setText("Отправка...");
 
         kafkaService.sendMessage(topic, key, value)
@@ -131,7 +132,10 @@ public class SendMessageDialog {
                 .exceptionallyAsync(ex -> {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                     String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
-                    statusLabel.setStyle(STYLE_STATUS_ERROR);
+                    statusLabel.getStyleClass().remove("status-label");
+                    if (!statusLabel.getStyleClass().contains("status-label-error")) {
+                        statusLabel.getStyleClass().add("status-label-error");
+                    }
                     statusLabel.setText("Ошибка: " + msg);
                     sendButton.setDisable(false);
                     cancelButton.setDisable(false);

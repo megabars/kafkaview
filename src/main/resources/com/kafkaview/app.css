@@ -1,0 +1,42 @@
+/* Ячейка колонки «Ключ» когда ключ пуст */
+.table-cell:empty-key {
+    -fx-text-fill: #aaaaaa;
+}
+
+/* Статусные метки (используются в TopicListPanel, MessageTablePanel, SendMessageDialog) */
+.status-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #666666;
+}
+
+.status-label-error {
+    -fx-font-size: 11px;
+    -fx-text-fill: #cc0000;
+}
+
+/* Подсказки под полями ввода */
+.hint-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #888888;
+}
+
+/* Метки результата проверки соединения (SettingsDialog) */
+.test-result-normal {
+    -fx-font-size: 12px;
+    -fx-text-fill: #888888;
+}
+
+.test-result-warning {
+    -fx-font-size: 12px;
+    -fx-text-fill: #cc6600;
+}
+
+.test-result-success {
+    -fx-font-size: 12px;
+    -fx-text-fill: #007700;
+}
+
+.test-result-error {
+    -fx-font-size: 12px;
+    -fx-text-fill: #cc0000;
+}

@@ -19,6 +19,7 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.css.PseudoClass;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
@@ -30,8 +31,9 @@ public class MessageTablePanel {
 
     private static final int PAGE_SIZE = 30;
 
-    private static final String STYLE_STATUS_NORMAL = "-fx-font-size: 11px; -fx-text-fill: #666666;";
-    private static final String STYLE_STATUS_ERROR  = "-fx-font-size: 11px; -fx-text-fill: #cc0000;";
+
+    // Псевдокласс для ячеек с пустым ключом; стиль определяется в app.css
+    private static final PseudoClass PSEUDO_EMPTY_KEY = PseudoClass.getPseudoClass("empty-key");
 
     private final KafkaService kafkaService;
 
@@ -116,7 +118,7 @@ public class MessageTablePanel {
         pagination.setAlignment(Pos.CENTER);
 
         statusLabel = new Label();
-        statusLabel.setStyle(STYLE_STATUS_NORMAL);
+        statusLabel.getStyleClass().add("status-label");
 
         HBox header = new HBox(10, titleLabel, sendButton);
         header.setAlignment(Pos.CENTER_LEFT);
@@ -135,8 +137,8 @@ public class MessageTablePanel {
     }
 
     public void loadMessages(String topic) {
-        // Отменяем предыдущий fetch и захватываем поколение для этого запроса
-        kafkaService.cancelFetch();
+        // Захватываем поколение для этого запроса; предыдущий fetch отменяется
+        // автоматически внутри fetchMessagesStreaming().
         final int myGen = ++generation;
 
         currentTopic = topic;
@@ -221,12 +223,18 @@ public class MessageTablePanel {
     // -----------------------------------------------------------------------
 
     private void setStatusNormal(String text) {
-        statusLabel.setStyle(STYLE_STATUS_NORMAL);
+        statusLabel.getStyleClass().remove("status-label-error");
+        if (!statusLabel.getStyleClass().contains("status-label")) {
+            statusLabel.getStyleClass().add("status-label");
+        }
         statusLabel.setText(text);
     }
 
     private void setStatusError(String text) {
-        statusLabel.setStyle(STYLE_STATUS_ERROR);
+        statusLabel.getStyleClass().remove("status-label");
+        if (!statusLabel.getStyleClass().contains("status-label-error")) {
+            statusLabel.getStyleClass().add("status-label-error");
+        }
         statusLabel.setText(text);
     }
 
@@ -272,13 +280,10 @@ public class MessageTablePanel {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null || item.isEmpty()) {
-                    setText(null);
-                    setStyle("-fx-text-fill: #aaaaaa;");
-                } else {
-                    setText(item.length() > 40 ? item.substring(0, 40) + "…" : item);
-                    setStyle("");
-                }
+                boolean emptyKey = empty || item == null || item.isEmpty();
+                setText(emptyKey ? null : (item.length() > 40 ? item.substring(0, 40) + "…" : item));
+                // PseudoClass не конфликтует с CSS-стилями выделения строки
+                pseudoClassStateChanged(PSEUDO_EMPTY_KEY, emptyKey);
             }
         });
 

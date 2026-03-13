@@ -30,8 +30,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 public class KafkaService {
 
@@ -39,9 +39,10 @@ public class KafkaService {
 
     private static final Duration POLL_TIMEOUT    = Duration.ofMillis(500);
     private static final int     ADMIN_TIMEOUT_MS = 10_000;
+    private static final int     TEST_TIMEOUT_MS  = 5_000;
     // Максимальное суммарное время ожидания данных от брокера при одном fetch.
     // Если за это время ни одного нового сообщения не пришло, считаем fetch завершённым.
-    private static final Duration FETCH_TIMEOUT   = Duration.ofSeconds(30);
+    private static final Duration FETCH_TIMEOUT   = Duration.ofSeconds(10);
 
     private final ConnectionSettings settings;
     // executor — единственный поток для fetch/send (разделяет состояние producer)
@@ -50,8 +51,11 @@ public class KafkaService {
     // чтобы они не вставали в очередь за долгим fetchMessagesStreaming.
     private final ExecutorService adminExecutor;
 
-    // Флаг отмены текущего fetch. AtomicBoolean — атомарные read/write между FX и executor потоками.
-    private final AtomicBoolean fetchCancelled = new AtomicBoolean(false);
+    // Токен отмены текущего fetch. Каждый новый fetchMessagesStreaming() создаёт свой
+    // AtomicBoolean и сохраняет его здесь; cancelFetch() устанавливает его в true.
+    // Таким образом задачи в очереди (ещё не стартовавшие) немедленно останавливаются
+    // при запуске, а не сбрасывают флаг и продолжают работу.
+    private volatile AtomicBoolean currentFetchToken = new AtomicBoolean(true); // изначально «отменён»
 
     // Защита от двойного shutdown().
     private final AtomicBoolean shutdownCalled = new AtomicBoolean(false);
@@ -68,8 +72,9 @@ public class KafkaService {
             t.setDaemon(true);
             return t;
         });
+        AtomicInteger adminCounter = new AtomicInteger(1);
         this.adminExecutor = Executors.newFixedThreadPool(2, r -> {
-            Thread t = new Thread(r, "kafka-admin");
+            Thread t = new Thread(r, "kafka-admin-" + adminCounter.getAndIncrement());
             t.setDaemon(true);
             return t;
         });
@@ -88,7 +93,7 @@ public class KafkaService {
                         .get(ADMIN_TIMEOUT_MS + 2_000, TimeUnit.MILLISECONDS)
                         .stream()
                         .sorted()
-                        .collect(Collectors.toList());
+                        .toList();
             } catch (Exception e) {
                 log.error("Не удалось получить список топиков", e);
                 throw new RuntimeException("Не удалось получить список топиков: " + e.getMessage(), e);
@@ -107,13 +112,13 @@ public class KafkaService {
         return CompletableFuture.supplyAsync(() -> {
             Properties props = new Properties();
             props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-            props.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, "5000");
-            props.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, "5000");
-            props.put(AdminClientConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG, "5000");
+            props.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, String.valueOf(TEST_TIMEOUT_MS));
+            props.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, String.valueOf(TEST_TIMEOUT_MS));
+            props.put(AdminClientConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG, String.valueOf(TEST_TIMEOUT_MS));
             try (AdminClient admin = AdminClient.create(props)) {
-                admin.listTopics(new ListTopicsOptions().timeoutMs(5000))
+                admin.listTopics(new ListTopicsOptions().timeoutMs(TEST_TIMEOUT_MS))
                         .names()
-                        .get(7, TimeUnit.SECONDS);
+                        .get(TEST_TIMEOUT_MS + 2_000L, TimeUnit.MILLISECONDS);
                 log.info("Проверка соединения успешна: {}", bootstrapServers);
                 return true;
             } catch (Exception e) {
@@ -132,11 +137,10 @@ public class KafkaService {
     // -----------------------------------------------------------------------
 
     /**
-     * Сбрасывает флаг отмены. Вызывается перед началом нового fetch,
-     * чтобы прерванный предыдущий fetch остановился на следующей итерации.
+     * Отменяет текущий (и все ожидающие в очереди) fetch-запросы.
      */
     public void cancelFetch() {
-        fetchCancelled.set(true);
+        currentFetchToken.set(true);
     }
 
     public void fetchMessagesStreaming(
@@ -145,14 +149,20 @@ public class KafkaService {
             Runnable onComplete,
             Consumer<Throwable> onError) {
 
+        // Отменяем предыдущий fetch автоматически, чтобы вызывающий код
+        // не обязан вызывать cancelFetch() вручную перед каждым вызовом.
+        cancelFetch();
+        AtomicBoolean cancelToken = new AtomicBoolean(false);
+        currentFetchToken = cancelToken;
+
         executor.submit(() -> {
-            fetchCancelled.set(false); // сброс в начале каждого fetch (на executor-потоке)
+            if (cancelToken.get()) return; // задача успела устареть ещё в очереди
             try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(buildConsumerProps())) {
                 // assign() вместо subscribe() — обходим group coordinator и rebalance delay (3с)
                 // partitionsFor() делает быстрый metadata-запрос к брокеру
                 List<TopicPartition> partitions = consumer.partitionsFor(topic).stream()
                         .map(pi -> new TopicPartition(pi.topic(), pi.partition()))
-                        .collect(Collectors.toList());
+                        .toList();
                 consumer.assign(partitions);
 
                 Map<TopicPartition, Long> endOffsets = consumer.endOffsets(partitions);
@@ -184,7 +194,7 @@ public class KafkaService {
                 // Основной цикл чтения — каждый batch сразу отправляем в UI
                 int collected = 0;
                 long deadline = System.currentTimeMillis() + FETCH_TIMEOUT.toMillis();
-                while (!fetchCancelled.get()) {
+                while (!cancelToken.get()) {
                     if (System.currentTimeMillis() > deadline) {
                         log.warn("Fetch timeout ({}s) для топика '{}': загружено {} сообщений",
                                 FETCH_TIMEOUT.getSeconds(), topic, collected);
@@ -213,12 +223,12 @@ public class KafkaService {
                     if (reachedEnd) break;
                 }
 
-                if (!fetchCancelled.get()) {
+                if (!cancelToken.get()) {
                     Platform.runLater(onComplete);
                 }
 
             } catch (Exception e) {
-                if (!fetchCancelled.get()) {
+                if (!cancelToken.get()) {
                     log.error("Ошибка загрузки сообщений из топика '{}'", topic, e);
                     Platform.runLater(() -> onError.accept(
                             new RuntimeException("Не удалось загрузить сообщения из топика \""
@@ -256,7 +266,7 @@ public class KafkaService {
         if (!shutdownCalled.compareAndSet(false, true)) {
             return; // повторный вызов игнорируем
         }
-        fetchCancelled.set(true);
+        cancelFetch();
         // Закрываем producer на executor-потоке перед остановкой
         executor.submit(() -> {
             if (producer != null) {
@@ -357,8 +367,11 @@ public class KafkaService {
                 long avail = Math.max(0,
                         endOffsets.getOrDefault(tp, 0L) - beginOffsets.getOrDefault(tp, 0L));
                 if (avail <= perPartition) {
-                    quota.put(tp, avail);
-                    remaining -= avail;
+                    // Math.min предохраняет remaining от ухода в минус когда
+                    // perPartition = max(1, remaining/size) и size > remaining.
+                    long take = Math.min(avail, remaining);
+                    quota.put(tp, take);
+                    remaining -= take;
                     capped.add(tp);
                 }
             }
