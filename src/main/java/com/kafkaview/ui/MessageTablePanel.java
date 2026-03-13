@@ -156,11 +156,6 @@ public class MessageTablePanel {
                 batch -> {
                     if (generation != myGen) return; // устаревший fetch — игнорируем
                     allMessages.addAll(batch);
-                    // Если активна сортировка — применяем сразу, чтобы страницы были
-                    // корректными и в процессе загрузки, а не только после onComplete.
-                    if (tableView.getComparator() != null) {
-                        allMessages.sort(tableView.getComparator());
-                    }
                     refreshPage();
                     setStatusNormal("Загружено: " + allMessages.size() + "…");
                 },
@@ -181,8 +176,10 @@ public class MessageTablePanel {
                 // onError
                 error -> {
                     if (generation != myGen) return;
+                    pageLabel.setText("");
                     Throwable cause = error.getCause() != null ? error.getCause() : error;
-                    setStatusError("Ошибка загрузки: " + cause.getMessage());
+                    String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
+                    setStatusError("Ошибка загрузки: " + msg);
                 }
         );
     }

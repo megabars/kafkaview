@@ -13,13 +13,15 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 public class SendMessageDialog {
+
+    private static final String STYLE_STATUS_NORMAL = "-fx-font-size: 12px; -fx-text-fill: #888888;";
+    private static final String STYLE_STATUS_ERROR  = "-fx-font-size: 12px; -fx-text-fill: #cc0000;";
 
     private final KafkaService kafkaService;
     private final String topic;
@@ -118,8 +120,8 @@ public class SendMessageDialog {
 
         sendButton.setDisable(true);
         cancelButton.setDisable(true);
+        statusLabel.setStyle(STYLE_STATUS_NORMAL);
         statusLabel.setText("Отправка...");
-        statusLabel.setTextFill(Color.GRAY);
 
         kafkaService.sendMessage(topic, key, value)
                 .thenRunAsync(() -> {
@@ -128,8 +130,9 @@ public class SendMessageDialog {
                 }, Platform::runLater)
                 .exceptionallyAsync(ex -> {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                    statusLabel.setText("Ошибка: " + cause.getMessage());
-                    statusLabel.setTextFill(Color.RED);
+                    String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
+                    statusLabel.setStyle(STYLE_STATUS_ERROR);
+                    statusLabel.setText("Ошибка: " + msg);
                     sendButton.setDisable(false);
                     cancelButton.setDisable(false);
                     return null;

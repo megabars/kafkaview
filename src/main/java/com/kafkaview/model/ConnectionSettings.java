@@ -29,7 +29,4 @@ public class ConnectionSettings {
         this.maxMessages = Math.max(1, maxMessages);
     }
 
-    public boolean isConfigured() {
-        return !bootstrapServers.isBlank();
-    }
 }

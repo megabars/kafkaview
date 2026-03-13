@@ -12,13 +12,17 @@ import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 public class SettingsDialog {
+
+    private static final String STYLE_TEST_NORMAL  = "-fx-font-size: 12px; -fx-text-fill: #888888;";
+    private static final String STYLE_TEST_WARNING = "-fx-font-size: 12px; -fx-text-fill: #cc6600;";
+    private static final String STYLE_TEST_SUCCESS = "-fx-font-size: 12px; -fx-text-fill: #007700;";
+    private static final String STYLE_TEST_ERROR   = "-fx-font-size: 12px; -fx-text-fill: #cc0000;";
 
     private final ConnectionSettings settings;
     private final KafkaService kafkaService;
@@ -69,7 +73,6 @@ public class SettingsDialog {
 
         testButton = new Button("Проверить соединение");
         testResultLabel = new Label();
-        testResultLabel.setStyle("-fx-font-size: 12px;");
 
         HBox testRow = new HBox(10, testButton, testResultLabel);
         testRow.setAlignment(Pos.CENTER_LEFT);
@@ -119,28 +122,38 @@ public class SettingsDialog {
         return content;
     }
 
+    // Паттерн: один или несколько адресов host:port через запятую
+    private static final java.util.regex.Pattern BOOTSTRAP_PATTERN =
+            java.util.regex.Pattern.compile("^[^:,\\s]+(:\\d+)?(,[^:,\\s]+(:\\d+)?)*$");
+
     private void onTestConnection() {
         String value = bootstrapField.getText().trim();
         if (value.isEmpty()) {
+            testResultLabel.setStyle(STYLE_TEST_WARNING);
             testResultLabel.setText("Введите адрес сервера");
-            testResultLabel.setTextFill(Color.ORANGE);
+            return;
+        }
+        if (!BOOTSTRAP_PATTERN.matcher(value).matches()) {
+            testResultLabel.setStyle(STYLE_TEST_WARNING);
+            testResultLabel.setText("Неверный формат — ожидается host:port");
             return;
         }
 
+        validationLabel.setText(""); // очищаем ошибку валидации, если была
         testButton.setDisable(true);
         okButton.setDisable(true);
+        testResultLabel.setStyle(STYLE_TEST_NORMAL);
         testResultLabel.setText("Проверка...");
-        testResultLabel.setTextFill(Color.GRAY);
 
         // Передаём адрес напрямую — settings не трогаем до нажатия OK
         kafkaService.testConnection(value)
                 .thenAcceptAsync(success -> {
                     if (success) {
+                        testResultLabel.setStyle(STYLE_TEST_SUCCESS);
                         testResultLabel.setText("Соединение успешно");
-                        testResultLabel.setTextFill(Color.GREEN);
                     } else {
+                        testResultLabel.setStyle(STYLE_TEST_ERROR);
                         testResultLabel.setText("Соединение не установлено");
-                        testResultLabel.setTextFill(Color.RED);
                     }
                     testButton.setDisable(false);
                     okButton.setDisable(false);

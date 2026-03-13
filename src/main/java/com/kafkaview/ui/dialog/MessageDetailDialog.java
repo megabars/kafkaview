@@ -89,7 +89,9 @@ public class MessageDetailDialog {
         valueCol.setHgrow(Priority.ALWAYS);
         meta.getColumnConstraints().addAll(labelCol, valueCol);
 
-        String keyText = message.getKey().isEmpty() ? "—" : message.getKey();
+        String rawKey = message.getKey();
+        String keyText = rawKey.isEmpty() ? "—"
+                : rawKey.length() > 120 ? rawKey.substring(0, 120) + "…" : rawKey;
         meta.add(bold("Ключ:"),       0, 0);
         meta.add(value(keyText),      1, 0);
         meta.add(bold("Партиция:"),   0, 1);

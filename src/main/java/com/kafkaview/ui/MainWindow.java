@@ -75,7 +75,7 @@ public class MainWindow {
         settingsMenu.getItems().add(configureItem);
 
         MenuBar menuBar = new MenuBar(fileMenu, settingsMenu);
-        menuBar.setUseSystemMenuBar(false);
+        menuBar.setUseSystemMenuBar(true);
         return menuBar;
     }
 

@@ -37,8 +37,11 @@ public class KafkaService {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaService.class);
 
-    private static final Duration POLL_TIMEOUT = Duration.ofMillis(500);
-    private static final int ADMIN_TIMEOUT_MS = 10_000;
+    private static final Duration POLL_TIMEOUT    = Duration.ofMillis(500);
+    private static final int     ADMIN_TIMEOUT_MS = 10_000;
+    // Максимальное суммарное время ожидания данных от брокера при одном fetch.
+    // Если за это время ни одного нового сообщения не пришло, считаем fetch завершённым.
+    private static final Duration FETCH_TIMEOUT   = Duration.ofSeconds(30);
 
     private final ConnectionSettings settings;
     // executor — единственный поток для fetch/send (разделяет состояние producer)
@@ -47,8 +50,8 @@ public class KafkaService {
     // чтобы они не вставали в очередь за долгим fetchMessagesStreaming.
     private final ExecutorService adminExecutor;
 
-    // Флаг отмены текущего fetch. Volatile — читается на executor-потоке, пишется на FX-потоке.
-    private volatile boolean fetchCancelled = false;
+    // Флаг отмены текущего fetch. AtomicBoolean — атомарные read/write между FX и executor потоками.
+    private final AtomicBoolean fetchCancelled = new AtomicBoolean(false);
 
     // Защита от двойного shutdown().
     private final AtomicBoolean shutdownCalled = new AtomicBoolean(false);
@@ -65,7 +68,7 @@ public class KafkaService {
             t.setDaemon(true);
             return t;
         });
-        this.adminExecutor = Executors.newCachedThreadPool(r -> {
+        this.adminExecutor = Executors.newFixedThreadPool(2, r -> {
             Thread t = new Thread(r, "kafka-admin");
             t.setDaemon(true);
             return t;
@@ -133,7 +136,7 @@ public class KafkaService {
      * чтобы прерванный предыдущий fetch остановился на следующей итерации.
      */
     public void cancelFetch() {
-        fetchCancelled = true;
+        fetchCancelled.set(true);
     }
 
     public void fetchMessagesStreaming(
@@ -143,7 +146,7 @@ public class KafkaService {
             Consumer<Throwable> onError) {
 
         executor.submit(() -> {
-            fetchCancelled = false; // сброс в начале каждого fetch (на executor-потоке)
+            fetchCancelled.set(false); // сброс в начале каждого fetch (на executor-потоке)
             try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(buildConsumerProps())) {
                 // assign() вместо subscribe() — обходим group coordinator и rebalance delay (3с)
                 // partitionsFor() делает быстрый metadata-запрос к брокеру
@@ -180,7 +183,14 @@ public class KafkaService {
 
                 // Основной цикл чтения — каждый batch сразу отправляем в UI
                 int collected = 0;
-                while (!fetchCancelled) {
+                long deadline = System.currentTimeMillis() + FETCH_TIMEOUT.toMillis();
+                while (!fetchCancelled.get()) {
+                    if (System.currentTimeMillis() > deadline) {
+                        log.warn("Fetch timeout ({}s) для топика '{}': загружено {} сообщений",
+                                FETCH_TIMEOUT.getSeconds(), topic, collected);
+                        break;
+                    }
+
                     ConsumerRecords<String, String> records = consumer.poll(POLL_TIMEOUT);
 
                     if (!records.isEmpty()) {
@@ -203,12 +213,12 @@ public class KafkaService {
                     if (reachedEnd) break;
                 }
 
-                if (!fetchCancelled) {
+                if (!fetchCancelled.get()) {
                     Platform.runLater(onComplete);
                 }
 
             } catch (Exception e) {
-                if (!fetchCancelled) {
+                if (!fetchCancelled.get()) {
                     log.error("Ошибка загрузки сообщений из топика '{}'", topic, e);
                     Platform.runLater(() -> onError.accept(
                             new RuntimeException("Не удалось загрузить сообщения из топика \""
@@ -246,7 +256,7 @@ public class KafkaService {
         if (!shutdownCalled.compareAndSet(false, true)) {
             return; // повторный вызов игнорируем
         }
-        fetchCancelled = true;
+        fetchCancelled.set(true);
         // Закрываем producer на executor-потоке перед остановкой
         executor.submit(() -> {
             if (producer != null) {
@@ -279,11 +289,11 @@ public class KafkaService {
      * Вызывается только на executor-потоке.
      */
     private KafkaProducer<String, String> getOrCreateProducer() {
-        String bootstrap = settings.getBootstrapServers();
+        String bootstrap = settings.getBootstrapServers(); // читаем один раз
         if (producer == null || !bootstrap.equals(producerBootstrap)) {
             if (producer != null) producer.close(Duration.ZERO);
-            producer = new KafkaProducer<>(buildProducerProps());
             producerBootstrap = bootstrap;
+            producer = new KafkaProducer<>(buildProducerProps(bootstrap));
         }
         return producer;
     }
@@ -292,13 +302,14 @@ public class KafkaService {
         Properties props = new Properties();
         props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, settings.getBootstrapServers());
         props.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, String.valueOf(ADMIN_TIMEOUT_MS));
+        props.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, String.valueOf(ADMIN_TIMEOUT_MS));
         props.put(AdminClientConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG, "5000");
         return props;
     }
 
-    private Properties buildProducerProps() {
+    private Properties buildProducerProps(String bootstrap) {
         Properties props = new Properties();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, settings.getBootstrapServers());
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap);
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         props.put(ProducerConfig.ACKS_CONFIG, "all");
@@ -352,9 +363,16 @@ public class KafkaService {
                 }
             }
             if (capped.isEmpty()) {
-                // Все оставшиеся партиции могут принять свою долю
-                for (TopicPartition tp : toDistribute) {
-                    quota.put(tp, (long) perPartition);
+                // Все оставшиеся партиции могут принять свою долю.
+                // Остаток от целочисленного деления отдаём последней партиции,
+                // чтобы суммарная квота равнялась exactly remaining.
+                int size = toDistribute.size();
+                for (int i = 0; i < size; i++) {
+                    TopicPartition tp = toDistribute.get(i);
+                    long share = (i < size - 1)
+                            ? perPartition
+                            : remaining - (long) perPartition * (size - 1);
+                    quota.put(tp, share);
                 }
                 break;
             }
