@@ -74,7 +74,7 @@ public class MessageDetailDialog {
         dialogStage.setMinHeight(420);
     }
 
-    public void show() {
+    public void showAndWait() {
         dialogStage.showAndWait();
     }
 

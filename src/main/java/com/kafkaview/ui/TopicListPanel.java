@@ -90,18 +90,10 @@ public class TopicListPanel {
     }
 
     private void setStatusNormal(String text) {
-        statusLabel.getStyleClass().remove("status-label-error");
-        if (!statusLabel.getStyleClass().contains("status-label")) {
-            statusLabel.getStyleClass().add("status-label");
-        }
-        statusLabel.setText(text);
+        UiUtils.setStatusNormal(statusLabel, text);
     }
 
     private void setStatusError(String text) {
-        statusLabel.getStyleClass().remove("status-label");
-        if (!statusLabel.getStyleClass().contains("status-label-error")) {
-            statusLabel.getStyleClass().add("status-label-error");
-        }
-        statusLabel.setText(text);
+        UiUtils.setStatusError(statusLabel, text);
     }
 }

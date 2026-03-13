@@ -193,10 +193,12 @@ public class KafkaService {
 
                 // Основной цикл чтения — каждый batch сразу отправляем в UI
                 int collected = 0;
-                long deadline = System.currentTimeMillis() + FETCH_TIMEOUT.toMillis();
+                // idleDeadline сбрасывается при каждом непустом poll — считаем
+                // время простоя брокера, а не суммарное время fetch.
+                long idleDeadline = System.currentTimeMillis() + FETCH_TIMEOUT.toMillis();
                 while (!cancelToken.get()) {
-                    if (System.currentTimeMillis() > deadline) {
-                        log.warn("Fetch timeout ({}s) для топика '{}': загружено {} сообщений",
+                    if (System.currentTimeMillis() > idleDeadline) {
+                        log.warn("Fetch idle-timeout ({}s) для топика '{}': загружено {} сообщений",
                                 FETCH_TIMEOUT.getSeconds(), topic, collected);
                         break;
                     }
@@ -204,6 +206,7 @@ public class KafkaService {
                     ConsumerRecords<String, String> records = consumer.poll(POLL_TIMEOUT);
 
                     if (!records.isEmpty()) {
+                        idleDeadline = System.currentTimeMillis() + FETCH_TIMEOUT.toMillis();
                         List<KafkaMessage> batch = new ArrayList<>(records.count());
                         for (ConsumerRecord<String, String> r : records) {
                             if (collected >= maxMessages) break;
@@ -377,14 +380,15 @@ public class KafkaService {
             }
             if (capped.isEmpty()) {
                 // Все оставшиеся партиции могут принять свою долю.
-                // Остаток от целочисленного деления отдаём последней партиции,
-                // чтобы суммарная квота равнялась exactly remaining.
-                int size = toDistribute.size();
+                // Используем base = remaining/size (а не perPartition), чтобы
+                // избежать отрицательной квоты когда remaining < size.
+                // Остаток от деления отдаём последней партиции.
+                int size  = toDistribute.size();
+                int base  = remaining / size;
+                int extra = remaining % size;
                 for (int i = 0; i < size; i++) {
                     TopicPartition tp = toDistribute.get(i);
-                    long share = (i < size - 1)
-                            ? perPartition
-                            : remaining - (long) perPartition * (size - 1);
+                    long share = (i < size - 1) ? base : (long) base + extra;
                     quota.put(tp, share);
                 }
                 break;

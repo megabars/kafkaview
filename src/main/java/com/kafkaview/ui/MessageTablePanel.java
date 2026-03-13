@@ -27,6 +27,7 @@ import javafx.stage.Stage;
 import java.util.ArrayList;
 import java.util.List;
 
+
 public class MessageTablePanel {
 
     private static final int PAGE_SIZE = 30;
@@ -208,7 +209,7 @@ public class MessageTablePanel {
 
     private void openDetailDialog(KafkaMessage message) {
         MessageDetailDialog dialog = new MessageDetailDialog(message, ownerStage);
-        dialog.show();
+        dialog.showAndWait();
     }
 
     private void openSendDialog() {
@@ -223,19 +224,11 @@ public class MessageTablePanel {
     // -----------------------------------------------------------------------
 
     private void setStatusNormal(String text) {
-        statusLabel.getStyleClass().remove("status-label-error");
-        if (!statusLabel.getStyleClass().contains("status-label")) {
-            statusLabel.getStyleClass().add("status-label");
-        }
-        statusLabel.setText(text);
+        UiUtils.setStatusNormal(statusLabel, text);
     }
 
     private void setStatusError(String text) {
-        statusLabel.getStyleClass().remove("status-label");
-        if (!statusLabel.getStyleClass().contains("status-label-error")) {
-            statusLabel.getStyleClass().add("status-label-error");
-        }
-        statusLabel.setText(text);
+        UiUtils.setStatusError(statusLabel, text);
     }
 
     // -----------------------------------------------------------------------

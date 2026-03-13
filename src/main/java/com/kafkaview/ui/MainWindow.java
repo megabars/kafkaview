@@ -1,6 +1,7 @@
 package com.kafkaview.ui;
 
 import com.kafkaview.model.ConnectionSettings;
+import com.kafkaview.model.SettingsPersistence;
 import com.kafkaview.service.KafkaService;
 import com.kafkaview.ui.dialog.SettingsDialog;
 import javafx.application.Platform;
@@ -51,6 +52,7 @@ public class MainWindow {
         VBox.setVgrow(splitPane, Priority.ALWAYS);
 
         Scene scene = new Scene(root, 1100, 700);
+        scene.getStylesheets().add(getClass().getResource("/com/kafkaview/app.css").toExternalForm());
         primaryStage.setScene(scene);
         primaryStage.setTitle("KafkaView");
         primaryStage.setMinWidth(750);
@@ -83,7 +85,7 @@ public class MainWindow {
         SettingsDialog dialog = new SettingsDialog(settings, kafkaService, ownerStage);
         boolean confirmed = dialog.showAndWait();
         if (confirmed) {
-            // После сохранения настроек обновляем список топиков
+            SettingsPersistence.save(settings);
             topicListPanel.loadTopics();
         }
     }

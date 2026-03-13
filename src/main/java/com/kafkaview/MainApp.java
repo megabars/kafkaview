@@ -1,6 +1,7 @@
 package com.kafkaview;
 
 import com.kafkaview.model.ConnectionSettings;
+import com.kafkaview.model.SettingsPersistence;
 import com.kafkaview.service.KafkaService;
 import com.kafkaview.ui.MainWindow;
 import javafx.application.Application;
@@ -14,6 +15,7 @@ public class MainApp extends Application {
     @Override
     public void start(Stage primaryStage) {
         connectionSettings = new ConnectionSettings();
+        SettingsPersistence.load(connectionSettings);
         kafkaService = new KafkaService(connectionSettings);
 
         MainWindow mainWindow = new MainWindow(connectionSettings, kafkaService);

@@ -3,6 +3,7 @@ package com.kafkaview.ui.dialog;
 import com.kafkaview.model.ConnectionSettings;
 import com.kafkaview.service.KafkaService;
 import javafx.application.Platform;
+import java.util.regex.Pattern;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -119,7 +120,7 @@ public class SettingsDialog {
     }
 
     // Паттерн: один или несколько адресов host:port через запятую; порт обязателен
-    private static final java.util.regex.Pattern BOOTSTRAP_PATTERN =
+    private static final Pattern BOOTSTRAP_PATTERN =
             java.util.regex.Pattern.compile("^[^:,\\s]+:\\d+(,[^:,\\s]+:\\d+)*$");
 
     /**

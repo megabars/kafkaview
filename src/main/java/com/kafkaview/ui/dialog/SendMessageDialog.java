@@ -1,6 +1,7 @@
 package com.kafkaview.ui.dialog;
 
 import com.kafkaview.service.KafkaService;
+import com.kafkaview.ui.UiUtils;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -118,11 +119,7 @@ public class SendMessageDialog {
 
         sendButton.setDisable(true);
         cancelButton.setDisable(true);
-        statusLabel.getStyleClass().remove("status-label-error");
-        if (!statusLabel.getStyleClass().contains("status-label")) {
-            statusLabel.getStyleClass().add("status-label");
-        }
-        statusLabel.setText("Отправка...");
+        UiUtils.setStatusNormal(statusLabel, "Отправка...");
 
         kafkaService.sendMessage(topic, key, value)
                 .thenRunAsync(() -> {
@@ -132,11 +129,7 @@ public class SendMessageDialog {
                 .exceptionallyAsync(ex -> {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                     String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
-                    statusLabel.getStyleClass().remove("status-label");
-                    if (!statusLabel.getStyleClass().contains("status-label-error")) {
-                        statusLabel.getStyleClass().add("status-label-error");
-                    }
-                    statusLabel.setText("Ошибка: " + msg);
+                    UiUtils.setStatusError(statusLabel, "Ошибка: " + msg);
                     sendButton.setDisable(false);
                     cancelButton.setDisable(false);
                     return null;
