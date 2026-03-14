@@ -1,5 +1,8 @@
 package com.mezentsev.kafkana.model;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -12,6 +15,8 @@ import java.util.Properties;
  * Сохраняет и загружает {@link AppSettings} в файл ~/.kafkana/settings.properties.
  */
 public final class AppSettingsPersistence {
+
+    private static final Logger log = LoggerFactory.getLogger(AppSettingsPersistence.class);
 
     private static final Path SETTINGS_PATH = Paths.get(
             System.getProperty("user.home"), ".kafkana", "settings.properties");
@@ -29,6 +34,7 @@ public final class AppSettingsPersistence {
         try (InputStream in = Files.newInputStream(SETTINGS_PATH)) {
             p.load(in);
         } catch (IOException e) {
+            log.warn("Не удалось загрузить настройки из {}: {}", SETTINGS_PATH, e.getMessage());
             return;
         }
         ConnectionSettings c = s.getConnection();
@@ -44,7 +50,9 @@ public final class AppSettingsPersistence {
     public static void save(AppSettings s) {
         try {
             Files.createDirectories(SETTINGS_PATH.getParent());
-        } catch (IOException ignored) {}
+        } catch (IOException e) {
+            log.warn("Не удалось создать директорию для настроек {}: {}", SETTINGS_PATH.getParent(), e.getMessage());
+        }
         Properties p = new Properties();
         ConnectionSettings c = s.getConnection();
         p.setProperty(KEY_BOOTSTRAP, c.getBootstrapServers());
@@ -53,6 +61,8 @@ public final class AppSettingsPersistence {
         p.setProperty(KEY_LANGUAGE, s.getLanguage());
         try (OutputStream out = Files.newOutputStream(SETTINGS_PATH)) {
             p.store(out, "Kafkana settings");
-        } catch (IOException ignored) {}
+        } catch (IOException e) {
+            log.warn("Не удалось сохранить настройки в {}: {}", SETTINGS_PATH, e.getMessage());
+        }
     }
 }

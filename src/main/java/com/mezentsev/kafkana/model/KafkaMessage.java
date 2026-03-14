@@ -33,7 +33,7 @@ public class KafkaMessage {
         this.timestamp = new SimpleLongProperty(timestamp);
         this.partition = new SimpleIntegerProperty(partition);
         this.offset    = new SimpleLongProperty(offset);
-        this.headers   = headers != null ? headers : Collections.emptyMap();
+        this.headers   = headers != null ? Collections.unmodifiableMap(headers) : Collections.emptyMap();
     }
 
     // --- key ---

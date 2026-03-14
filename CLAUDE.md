@@ -46,7 +46,7 @@ There are no tests or linting configured in this project.
 - `ui/UiUtils.java` — Static helpers for switching CSS classes on status labels
 - `ui/dialog/SettingsDialog.java` — Connection config with a "test connection" button
 - `ui/dialog/MessageDetailDialog.java` — Shows full message body with Text/JSON/XML formatting and message headers; includes resend button. JSON pretty-printer is hand-rolled; XML uses `javax.xml.transform` with XXE protection.
-- `ui/dialog/SendMessageDialog.java` — Send a message to the current topic; key and headers are optional, auto-closes on success
+- `ui/dialog/SendMessageDialog.java` — Send a message to the current topic; key and headers are optional; shows success/error status inline, stays open for follow-up sends
 - `ui/dialog/AboutDialog.java` — App info dialog
 
 **Cancellation:** Each `fetchMessagesStreaming()` call mints a new `AtomicBoolean` token stored in `currentFetchToken`; the previous token is flipped to cancelled. The worker polls the token between polls to exit early.

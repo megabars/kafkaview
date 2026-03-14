@@ -69,14 +69,6 @@ public class MessageDetailDialog {
     private TextArea textArea;
     private Label errorLabel;
 
-    public MessageDetailDialog(KafkaMessage message, Stage ownerStage) {
-        this(message, ownerStage, null, FORMAT_TEXT);
-    }
-
-    public MessageDetailDialog(KafkaMessage message, Stage ownerStage, Runnable onResend) {
-        this(message, ownerStage, onResend, FORMAT_TEXT);
-    }
-
     public MessageDetailDialog(KafkaMessage message, Stage ownerStage, Runnable onResend, String defaultFormat) {
         this.message = message;
         this.onResend = onResend;
@@ -184,7 +176,7 @@ public class MessageDetailDialog {
             resendButton.setPrefWidth(160);
             resendButton.setOnAction(e -> {
                 dialogStage.close();
-                javafx.application.Platform.runLater(onResend::run);
+                onResend.run();
             });
             buttons.getChildren().add(resendButton);
         }

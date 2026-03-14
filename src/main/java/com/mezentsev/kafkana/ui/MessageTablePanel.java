@@ -10,21 +10,21 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.beans.binding.Bindings;
+import javafx.css.PseudoClass;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
-import javafx.beans.binding.Bindings;
-import javafx.scene.control.ContextMenu;
-import javafx.scene.control.MenuItem;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.css.PseudoClass;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
@@ -188,6 +188,10 @@ public class MessageTablePanel {
                 batch -> {
                     if (generation != myGen) return; // устаревший fetch — игнорируем
                     allMessages.addAll(batch);
+                    // Если активна сортировка, держим список отсортированным сразу,
+                    // чтобы страница не «прыгала» при завершении загрузки.
+                    java.util.Comparator<KafkaMessage> cmp = tableView.getComparator();
+                    if (cmp != null) allMessages.sort(cmp);
                     refreshPage();
                     setStatusNormal(MessageFormat.format(
                             I18n.t("messages.panel.loaded"), String.valueOf(allMessages.size())));
