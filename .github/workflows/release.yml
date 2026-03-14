@@ -17,7 +17,7 @@ jobs:
           distribution: 'temurin'
 
       - name: Build macOS DMG
-        run: mvn verify -Pdist-mac -q
+        run: mvn verify -Pdist-mac
 
       - name: Rename DMG
         run: |
