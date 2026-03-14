@@ -1,5 +1,6 @@
 package com.mezentsev.kafkana.ui.dialog;
 
+import com.mezentsev.kafkana.i18n.I18n;
 import com.mezentsev.kafkana.model.KafkaMessage;
 import com.mezentsev.kafkana.service.KafkaService;
 import com.mezentsev.kafkana.ui.UiUtils;
@@ -23,6 +24,7 @@ import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.internals.RecordHeader;
 
 import java.nio.charset.StandardCharsets;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,7 +54,7 @@ public class SendMessageDialog {
         this.topic = topic;
 
         dialogStage = new Stage();
-        dialogStage.setTitle("Отправить сообщение");
+        dialogStage.setTitle(I18n.t("send.title"));
         dialogStage.initOwner(ownerStage);
         dialogStage.initModality(Modality.APPLICATION_MODAL);
         dialogStage.setResizable(true);
@@ -71,29 +73,29 @@ public class SendMessageDialog {
     }
 
     private VBox buildContent(KafkaMessage prefill) {
-        Label topicLabel = new Label("Топик: " + topic);
+        Label topicLabel = new Label(MessageFormat.format(I18n.t("send.topic"), topic));
         topicLabel.setFont(Font.font(null, FontWeight.BOLD, 13));
 
-        Label keyLabel = new Label("Ключ (необязательно):");
+        Label keyLabel = new Label(I18n.t("send.key"));
         keyField = new TextField();
-        keyField.setPromptText("Оставьте пустым, если ключ не нужен");
+        keyField.setPromptText(I18n.t("send.key.prompt"));
 
         // --- Секция заголовков ---
-        Label headersLabel = new Label("Заголовки:");
+        Label headersLabel = new Label(I18n.t("send.headers"));
         headersLabel.setFont(Font.font(null, FontWeight.BOLD, 12));
 
-        Button addHeaderBtn = new Button("+ Добавить заголовок");
+        Button addHeaderBtn = new Button(I18n.t("send.headers.add"));
         addHeaderBtn.setOnAction(e -> addHeaderRow());
 
         headersBox = new VBox(4, addHeaderBtn);
         headersBox.setPadding(new Insets(0));
 
         // --- Секция сообщения ---
-        Label valueLabel = new Label("Сообщение:");
+        Label valueLabel = new Label(I18n.t("send.value"));
         valueLabel.setFont(Font.font(null, FontWeight.BOLD, 12));
 
         valueArea = new TextArea();
-        valueArea.setPromptText("Введите текст сообщения");
+        valueArea.setPromptText(I18n.t("send.value.prompt"));
         valueArea.setWrapText(true);
         valueArea.setPrefRowCount(8);
         VBox.setVgrow(valueArea, Priority.ALWAYS);
@@ -104,12 +106,12 @@ public class SendMessageDialog {
         statusLabel = new Label();
         statusLabel.getStyleClass().add("status-label");
 
-        sendButton = new Button("Отправить");
+        sendButton = new Button(I18n.t("send.send"));
         sendButton.setDefaultButton(true);
         sendButton.setPrefWidth(100);
         sendButton.setOnAction(e -> onSend());
 
-        closeButton = new Button("Закрыть");
+        closeButton = new Button(I18n.t("send.close"));
         closeButton.setPrefWidth(80);
         closeButton.setOnAction(e -> dialogStage.close());
 
@@ -148,11 +150,11 @@ public class SendMessageDialog {
 
     private void addHeaderRow(String name, String value) {
         TextField nameField = new TextField(name);
-        nameField.setPromptText("Название");
+        nameField.setPromptText(I18n.t("send.headers.name.prompt"));
         nameField.setPrefWidth(160);
 
         TextField valueField = new TextField(value);
-        valueField.setPromptText("Значение");
+        valueField.setPromptText(I18n.t("send.headers.value.prompt"));
         HBox.setHgrow(valueField, Priority.ALWAYS);
 
         Button removeBtn = new Button("×");
@@ -186,7 +188,7 @@ public class SendMessageDialog {
     private void onSend() {
         String value = valueArea.getText();
         if (value.isBlank()) {
-            validationLabel.setText("Сообщение не может быть пустым");
+            validationLabel.setText(I18n.t("send.validation.empty"));
             return;
         }
         validationLabel.setText("");
@@ -196,19 +198,19 @@ public class SendMessageDialog {
 
         sendButton.setDisable(true);
         closeButton.setDisable(true);
-        UiUtils.setStatusNormal(statusLabel, "Отправка...");
+        UiUtils.setStatusNormal(statusLabel, I18n.t("send.sending"));
 
         kafkaService.sendMessage(topic, key, value, headers)
                 .thenRunAsync(() -> {
                     wasSent = true;
-                    UiUtils.setStatusNormal(statusLabel, "Сообщение отправлено");
+                    UiUtils.setStatusNormal(statusLabel, I18n.t("send.success"));
                     sendButton.setDisable(false);
                     closeButton.setDisable(false);
                 }, Platform::runLater)
                 .exceptionallyAsync(ex -> {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                     String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
-                    UiUtils.setStatusError(statusLabel, "Ошибка: " + msg);
+                    UiUtils.setStatusError(statusLabel, MessageFormat.format(I18n.t("send.error"), msg));
                     sendButton.setDisable(false);
                     closeButton.setDisable(false);
                     return null;

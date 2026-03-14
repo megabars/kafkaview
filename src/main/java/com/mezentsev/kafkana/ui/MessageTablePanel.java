@@ -1,5 +1,7 @@
 package com.mezentsev.kafkana.ui;
 
+import com.mezentsev.kafkana.i18n.I18n;
+import com.mezentsev.kafkana.model.AppSettings;
 import com.mezentsev.kafkana.model.KafkaMessage;
 import com.mezentsev.kafkana.service.KafkaService;
 import com.mezentsev.kafkana.ui.dialog.MessageDetailDialog;
@@ -27,6 +29,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,11 +38,11 @@ public class MessageTablePanel {
 
     private static final int PAGE_SIZE = 30;
 
-
     // Псевдокласс для ячеек с пустым ключом; стиль определяется в app.css
     private static final PseudoClass PSEUDO_EMPTY_KEY = PseudoClass.getPseudoClass("empty-key");
 
     private final KafkaService kafkaService;
+    private final AppSettings appSettings;
 
     private final TableView<KafkaMessage> tableView;
     // Все загруженные сообщения (полный список для сортировки и пагинации)
@@ -64,30 +67,29 @@ public class MessageTablePanel {
     // чтобы устаревшие batch-коллбэки из предыдущего fetch игнорировались.
     private int generation = 0;
 
-    public MessageTablePanel(KafkaService kafkaService) {
+    public MessageTablePanel(KafkaService kafkaService, AppSettings appSettings) {
         this.kafkaService = kafkaService;
+        this.appSettings = appSettings;
 
-        titleLabel = new Label("Сообщения");
+        titleLabel = new Label(I18n.t("messages.panel.title"));
         titleLabel.setFont(Font.font(null, FontWeight.BOLD, 14));
 
-        sendButton = new Button("Отправить сообщение");
+        sendButton = new Button(I18n.t("messages.panel.send"));
         sendButton.setDisable(true);
         sendButton.setOnAction(e -> openSendDialog());
 
         reloadButton = new Button("⟳");
         reloadButton.setDisable(true);
         reloadButton.getStyleClass().add("reload-button");
-        reloadButton.setTooltip(new Tooltip("Обновить сообщения"));
+        reloadButton.setTooltip(new Tooltip(I18n.t("messages.panel.reload.tooltip")));
         reloadButton.setOnAction(e -> loadMessages(currentTopic));
 
         tableView = new TableView<>(pageItems);
-        tableView.setPlaceholder(new Label("Выберите топик слева"));
+        tableView.setPlaceholder(new Label(I18n.t("messages.panel.placeholder")));
         tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         VBox.setVgrow(tableView, Priority.ALWAYS);
 
         // Порядок колонок: Партиция, Сообщение, Дата создания, Ключ, Offset.
-        // CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN растягивает последнюю колонку (Offset)
-        // на оставшееся место; у остальных колонок ширина задана через min/max/pref.
         tableView.getColumns().addAll(
                 buildPartitionColumn(),
                 buildValueColumn(),
@@ -105,7 +107,7 @@ public class MessageTablePanel {
                 }
             });
 
-            MenuItem resendItem = new MenuItem("Повторно отправить");
+            MenuItem resendItem = new MenuItem(I18n.t("messages.panel.resend"));
             resendItem.setOnAction(e -> {
                 KafkaMessage msg = row.getItem();
                 if (msg != null) openSendDialogWithPrefill(msg);
@@ -130,11 +132,11 @@ public class MessageTablePanel {
         });
 
         // --- Элементы пагинации ---
-        prevButton = new Button("◀ Пред.");
+        prevButton = new Button(I18n.t("messages.panel.prev"));
         prevButton.setDisable(true);
         prevButton.setOnAction(e -> { currentPage--; refreshPage(); });
 
-        nextButton = new Button("След. ▶");
+        nextButton = new Button(I18n.t("messages.panel.next"));
         nextButton.setDisable(true);
         nextButton.setOnAction(e -> { currentPage++; refreshPage(); });
 
@@ -171,8 +173,8 @@ public class MessageTablePanel {
         currentTopic = topic;
         sendButton.setDisable(false);
         reloadButton.setDisable(false);
-        titleLabel.setText("Сообщения — " + topic);
-        setStatusNormal("Загрузка...");
+        titleLabel.setText(MessageFormat.format(I18n.t("messages.panel.title.topic"), topic));
+        setStatusNormal(I18n.t("messages.panel.loading"));
         allMessages.clear();
         pageItems.clear();
         pageLabel.setText("");
@@ -187,7 +189,8 @@ public class MessageTablePanel {
                     if (generation != myGen) return; // устаревший fetch — игнорируем
                     allMessages.addAll(batch);
                     refreshPage();
-                    setStatusNormal("Загружено: " + allMessages.size() + "…");
+                    setStatusNormal(MessageFormat.format(
+                            I18n.t("messages.panel.loaded"), String.valueOf(allMessages.size())));
                 },
 
                 // onComplete: вызывается на FX-потоке когда всё прочитано
@@ -199,8 +202,9 @@ public class MessageTablePanel {
                         refreshPage();
                     }
                     setStatusNormal(allMessages.isEmpty()
-                            ? "Топик \"" + topic + "\" пуст"
-                            : "Всего сообщений: " + allMessages.size());
+                            ? MessageFormat.format(I18n.t("messages.panel.empty"), topic)
+                            : MessageFormat.format(I18n.t("messages.panel.total"),
+                                    String.valueOf(allMessages.size())));
                 },
 
                 // onError
@@ -209,7 +213,7 @@ public class MessageTablePanel {
                     pageLabel.setText("");
                     Throwable cause = error.getCause() != null ? error.getCause() : error;
                     String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
-                    setStatusError("Ошибка загрузки: " + msg);
+                    setStatusError(MessageFormat.format(I18n.t("messages.panel.error"), msg));
                 }
         );
     }
@@ -226,8 +230,9 @@ public class MessageTablePanel {
         pageItems.setAll(total > 0 ? allMessages.subList(from, to) : List.of());
 
         pageLabel.setText(total > 0
-                ? "Страница " + (currentPage + 1) + " из " + totalPages
-                  + "  (" + (from + 1) + "–" + to + " из " + total + ")"
+                ? MessageFormat.format(I18n.t("messages.panel.page"),
+                        String.valueOf(currentPage + 1), String.valueOf(totalPages),
+                        String.valueOf(from + 1), String.valueOf(to), String.valueOf(total))
                 : "");
 
         prevButton.setDisable(currentPage == 0);
@@ -235,8 +240,10 @@ public class MessageTablePanel {
     }
 
     private void openDetailDialog(KafkaMessage message) {
-        MessageDetailDialog dialog = new MessageDetailDialog(message, ownerStage,
-                () -> openSendDialogWithPrefill(message));
+        MessageDetailDialog dialog = new MessageDetailDialog(
+                message, ownerStage,
+                () -> openSendDialogWithPrefill(message),
+                appSettings.getDefaultMessageFormat());
         dialog.showAndWait();
     }
 
@@ -271,7 +278,7 @@ public class MessageTablePanel {
     // -----------------------------------------------------------------------
 
     private TableColumn<KafkaMessage, String> buildValueColumn() {
-        TableColumn<KafkaMessage, String> col = new TableColumn<>("Сообщение");
+        TableColumn<KafkaMessage, String> col = new TableColumn<>(I18n.t("col.value"));
         col.setCellValueFactory(data -> data.getValue().valueProperty());
         col.setPrefWidth(400);
         col.setMinWidth(150);
@@ -298,7 +305,7 @@ public class MessageTablePanel {
     }
 
     private TableColumn<KafkaMessage, String> buildKeyColumn() {
-        TableColumn<KafkaMessage, String> col = new TableColumn<>("Ключ");
+        TableColumn<KafkaMessage, String> col = new TableColumn<>(I18n.t("col.key"));
         col.setCellValueFactory(data -> data.getValue().keyProperty());
         col.setPrefWidth(120);
         col.setMinWidth(60);
@@ -321,7 +328,7 @@ public class MessageTablePanel {
 
     // Колонка даты: тип Long для корректной числовой сортировки
     private TableColumn<KafkaMessage, Long> buildTimestampColumn() {
-        TableColumn<KafkaMessage, Long> col = new TableColumn<>("Дата создания");
+        TableColumn<KafkaMessage, Long> col = new TableColumn<>(I18n.t("col.timestamp"));
         col.setCellValueFactory(data -> data.getValue().timestampProperty().asObject());
         col.setPrefWidth(180);
         col.setMinWidth(160);
@@ -343,7 +350,7 @@ public class MessageTablePanel {
     }
 
     private TableColumn<KafkaMessage, Integer> buildPartitionColumn() {
-        TableColumn<KafkaMessage, Integer> col = new TableColumn<>("Партиция");
+        TableColumn<KafkaMessage, Integer> col = new TableColumn<>(I18n.t("col.partition"));
         col.setCellValueFactory(data -> data.getValue().partitionProperty().asObject());
         col.setPrefWidth(80);
         col.setMinWidth(70);
@@ -353,7 +360,7 @@ public class MessageTablePanel {
     }
 
     private TableColumn<KafkaMessage, Long> buildOffsetColumn() {
-        TableColumn<KafkaMessage, Long> col = new TableColumn<>("Offset");
+        TableColumn<KafkaMessage, Long> col = new TableColumn<>(I18n.t("col.offset"));
         col.setCellValueFactory(data -> data.getValue().offsetProperty().asObject());
         col.setPrefWidth(90);
         col.setMinWidth(70);

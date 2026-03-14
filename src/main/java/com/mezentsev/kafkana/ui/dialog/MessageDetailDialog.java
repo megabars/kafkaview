@@ -1,5 +1,6 @@
 package com.mezentsev.kafkana.ui.dialog;
 
+import com.mezentsev.kafkana.i18n.I18n;
 import com.mezentsev.kafkana.model.KafkaMessage;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -21,6 +22,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.util.StringConverter;
 
 import java.util.Map;
 
@@ -36,7 +38,8 @@ import java.io.StringWriter;
 
 public class MessageDetailDialog {
 
-    private static final String FORMAT_TEXT = "Текст";
+    // Внутренние ключи формата (не зависят от языка интерфейса)
+    private static final String FORMAT_TEXT = "TEXT";
     private static final String FORMAT_JSON = "JSON";
     private static final String FORMAT_XML  = "XML";
 
@@ -49,9 +52,6 @@ public class MessageDetailDialog {
             TransformerFactory factory = TransformerFactory.newInstance();
             factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
             // Запрещаем внешние DTD и таблицы стилей — полная защита от XXE-атак.
-            // FEATURE_SECURE_PROCESSING сам по себе не гарантирует отключения внешних сущностей
-            // во всех реализациях (зависит от JRE/provider), поэтому дополнительно явно
-            // ограничиваем доступ к внешним ресурсам.
             factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
             factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
             factory.setAttribute("indent-number", 4);
@@ -64,20 +64,26 @@ public class MessageDetailDialog {
     private final KafkaMessage message;
     private final Stage dialogStage;
     private final Runnable onResend;
+    private final String defaultFormat;
 
     private TextArea textArea;
     private Label errorLabel;
 
     public MessageDetailDialog(KafkaMessage message, Stage ownerStage) {
-        this(message, ownerStage, null);
+        this(message, ownerStage, null, FORMAT_TEXT);
     }
 
     public MessageDetailDialog(KafkaMessage message, Stage ownerStage, Runnable onResend) {
+        this(message, ownerStage, onResend, FORMAT_TEXT);
+    }
+
+    public MessageDetailDialog(KafkaMessage message, Stage ownerStage, Runnable onResend, String defaultFormat) {
         this.message = message;
         this.onResend = onResend;
+        this.defaultFormat = (defaultFormat != null) ? defaultFormat : FORMAT_TEXT;
 
         dialogStage = new Stage();
-        dialogStage.setTitle("Детали сообщения");
+        dialogStage.setTitle(I18n.t("detail.title"));
         if (ownerStage != null) {
             dialogStage.initOwner(ownerStage);
             dialogStage.initModality(Modality.WINDOW_MODAL);
@@ -108,27 +114,39 @@ public class MessageDetailDialog {
         String rawKey = message.getKey();
         String keyText = rawKey.isEmpty() ? "—"
                 : rawKey.length() > 120 ? rawKey.substring(0, 120) + "…" : rawKey;
-        meta.add(bold("Ключ:"),       0, 0);
-        meta.add(value(keyText),      1, 0);
-        meta.add(bold("Партиция:"),   0, 1);
+        meta.add(bold(I18n.t("detail.key")),       0, 0);
+        meta.add(value(keyText),                   1, 0);
+        meta.add(bold(I18n.t("detail.partition")), 0, 1);
         meta.add(value(String.valueOf(message.getPartition())), 1, 1);
-        meta.add(bold("Дата/время:"), 0, 2);
+        meta.add(bold(I18n.t("detail.datetime")),  0, 2);
         meta.add(value(message.getFormattedTimestamp()), 1, 2);
 
         // --- Заголовки сообщения ---
         VBox headersSection = buildHeadersSection();
 
         // --- Заголовок + выбор формата ---
-        Label contentLabel = new Label("Содержимое сообщения:");
+        Label contentLabel = new Label(I18n.t("detail.content"));
         contentLabel.setFont(Font.font(null, FontWeight.BOLD, 13));
         HBox.setHgrow(contentLabel, Priority.ALWAYS);
 
-        Label formatLabel = new Label("Формат:");
+        Label formatLabel = new Label(I18n.t("detail.format"));
         formatLabel.getStyleClass().add("format-label");
 
         ComboBox<String> formatBox = new ComboBox<>();
+        formatBox.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(String key) {
+                if (key == null) return "";
+                return switch (key) {
+                    case FORMAT_JSON -> "JSON";
+                    case FORMAT_XML  -> "XML";
+                    default          -> I18n.t("detail.format.text");
+                };
+            }
+            @Override
+            public String fromString(String s) { return s; }
+        });
         formatBox.getItems().addAll(FORMAT_TEXT, FORMAT_JSON, FORMAT_XML);
-        formatBox.setValue(FORMAT_TEXT);
         formatBox.setPrefWidth(100);
 
         HBox toolbar = new HBox(10, contentLabel, formatLabel, formatBox);
@@ -147,11 +165,13 @@ public class MessageDetailDialog {
         errorLabel.setVisible(false);
         errorLabel.setManaged(false);
 
-        // --- Смена формата при выборе в списке ---
+        // Сначала добавляем listener, потом устанавливаем значение — это запускает
+        // applyFormat(defaultFormat) сразу при открытии диалога.
         formatBox.valueProperty().addListener((obs, oldVal, newVal) -> applyFormat(newVal));
+        formatBox.setValue(defaultFormat);
 
         // --- Кнопки ---
-        Button closeButton = new Button("Закрыть");
+        Button closeButton = new Button(I18n.t("detail.close"));
         closeButton.setDefaultButton(true);
         closeButton.setPrefWidth(90);
         closeButton.setOnAction(e -> dialogStage.close());
@@ -160,7 +180,7 @@ public class MessageDetailDialog {
         buttons.setAlignment(Pos.CENTER_RIGHT);
 
         if (onResend != null) {
-            Button resendButton = new Button("Отправить повторно");
+            Button resendButton = new Button(I18n.t("detail.resend"));
             resendButton.setPrefWidth(160);
             resendButton.setOnAction(e -> {
                 dialogStage.close();
@@ -194,7 +214,7 @@ public class MessageDetailDialog {
             return section;
         }
 
-        Label title = new Label("Заголовки:");
+        Label title = new Label(I18n.t("detail.headers"));
         title.setFont(Font.font(null, FontWeight.BOLD, 13));
 
         TableView<Map.Entry<String, String>> table = new TableView<>();
@@ -202,12 +222,12 @@ public class MessageDetailDialog {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setPrefHeight(Math.min(headers.size(), 5) * 28.0 + 30);
 
-        TableColumn<Map.Entry<String, String>, String> keyCol = new TableColumn<>("Ключ");
+        TableColumn<Map.Entry<String, String>, String> keyCol = new TableColumn<>(I18n.t("detail.headers.key"));
         keyCol.setCellValueFactory(cd ->
                 new javafx.beans.property.SimpleStringProperty(cd.getValue().getKey()));
         keyCol.setPrefWidth(220);
 
-        TableColumn<Map.Entry<String, String>, String> valCol = new TableColumn<>("Значение");
+        TableColumn<Map.Entry<String, String>, String> valCol = new TableColumn<>(I18n.t("detail.headers.value"));
         valCol.setCellValueFactory(cd ->
                 new javafx.beans.property.SimpleStringProperty(cd.getValue().getValue()));
 
@@ -231,7 +251,7 @@ public class MessageDetailDialog {
                 } else {
                     textArea.setText(raw);
                     textArea.setWrapText(true);
-                    showError("Невалидный JSON — показан исходный текст");
+                    showError(I18n.t("detail.error.json"));
                 }
             }
             case FORMAT_XML -> {
@@ -243,7 +263,7 @@ public class MessageDetailDialog {
                 } else {
                     textArea.setText(raw);
                     textArea.setWrapText(true);
-                    showError("Невалидный XML — показан исходный текст");
+                    showError(I18n.t("detail.error.xml"));
                 }
             }
             default -> {
@@ -338,8 +358,8 @@ public class MessageDetailDialog {
             }
         }
 
-        if (inString) throw new IllegalArgumentException("Незакрытая строка");
-        if (indent != 0) throw new IllegalArgumentException("Незакрытые скобки");
+        if (inString) throw new IllegalArgumentException("Unclosed string");
+        if (indent != 0) throw new IllegalArgumentException("Unclosed brackets");
         return sb.toString();
     }
 

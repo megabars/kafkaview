@@ -1,7 +1,8 @@
 package com.mezentsev.kafkana;
 
-import com.mezentsev.kafkana.model.ConnectionSettings;
-import com.mezentsev.kafkana.model.SettingsPersistence;
+import com.mezentsev.kafkana.i18n.I18n;
+import com.mezentsev.kafkana.model.AppSettings;
+import com.mezentsev.kafkana.model.AppSettingsPersistence;
 import com.mezentsev.kafkana.service.KafkaService;
 import com.mezentsev.kafkana.ui.MainWindow;
 import javafx.application.Application;
@@ -9,16 +10,18 @@ import javafx.stage.Stage;
 
 public class MainApp extends Application {
 
-    private ConnectionSettings connectionSettings;
+    private AppSettings appSettings;
     private KafkaService kafkaService;
 
     @Override
     public void start(Stage primaryStage) {
-        connectionSettings = new ConnectionSettings();
-        SettingsPersistence.load(connectionSettings);
-        kafkaService = new KafkaService(connectionSettings);
+        appSettings = new AppSettings();
+        AppSettingsPersistence.load(appSettings);
+        I18n.init(appSettings.getLanguage());
 
-        MainWindow mainWindow = new MainWindow(connectionSettings, kafkaService);
+        kafkaService = new KafkaService(appSettings.getConnection());
+
+        MainWindow mainWindow = new MainWindow(appSettings, kafkaService);
         mainWindow.show(primaryStage);
     }
 

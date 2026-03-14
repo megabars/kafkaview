@@ -1,5 +1,6 @@
 package com.mezentsev.kafkana.ui;
 
+import com.mezentsev.kafkana.i18n.I18n;
 import com.mezentsev.kafkana.service.KafkaService;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -12,6 +13,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
+import java.text.MessageFormat;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -30,7 +32,7 @@ public class TopicListPanel {
     public TopicListPanel(KafkaService kafkaService) {
         this.kafkaService = kafkaService;
 
-        Label title = new Label("Топики");
+        Label title = new Label(I18n.t("topic.panel.title"));
         title.setFont(Font.font(null, FontWeight.BOLD, 14));
 
         topicListView = new ListView<>();
@@ -41,7 +43,7 @@ public class TopicListPanel {
         statusLabel.setWrapText(true);
         statusLabel.getStyleClass().add("status-label");
 
-        refreshButton = new Button("Обновить");
+        refreshButton = new Button(I18n.t("topic.panel.refresh"));
         refreshButton.setMaxWidth(Double.MAX_VALUE);
         refreshButton.setOnAction(e -> loadTopics());
 
@@ -68,7 +70,7 @@ public class TopicListPanel {
     }
 
     public void loadTopics() {
-        statusLabel.setText("Загрузка...");
+        statusLabel.setText(I18n.t("topic.panel.loading"));
         refreshButton.setDisable(true);
         topicListView.getItems().clear();
 
@@ -79,13 +81,15 @@ public class TopicListPanel {
 
     private void onTopicsLoaded(List<String> topics) {
         topicListView.getItems().setAll(topics);
-        setStatusNormal(topics.isEmpty() ? "Топики не найдены" : topics.size() + " топик(ов)");
+        setStatusNormal(topics.isEmpty()
+                ? I18n.t("topic.panel.empty")
+                : MessageFormat.format(I18n.t("topic.panel.count"), String.valueOf(topics.size())));
         refreshButton.setDisable(false);
     }
 
     private void onTopicsError(Throwable error) {
         Throwable cause = error.getCause() != null ? error.getCause() : error;
-        setStatusError("Ошибка: " + cause.getMessage());
+        setStatusError(MessageFormat.format(I18n.t("topic.panel.error"), cause.getMessage()));
         refreshButton.setDisable(false);
     }
 
