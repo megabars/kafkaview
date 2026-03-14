@@ -46,7 +46,7 @@
 # Запустить из исходников
 mvn javafx:run
 
-# Fat JAR (target/kafkaview-0.6.0-fat.jar)
+# Fat JAR (target/kafkaview-1.0.0-fat.jar)
 mvn package
 
 # macOS DMG с bundled JRE
@@ -158,7 +158,7 @@ Download a ready-made distribution for your platform from the [Releases](../../r
 # Run from source
 mvn javafx:run
 
-# Fat JAR (target/kafkaview-0.6.0-fat.jar)
+# Fat JAR (target/kafkaview-1.0.0-fat.jar)
 mvn package
 
 # macOS DMG with bundled JRE

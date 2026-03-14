@@ -16,35 +16,13 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Build fat JAR
-        run: mvn package -q
+      - name: Build macOS DMG
+        run: mvn verify -Pdist-mac -q
 
-      - name: Copy JavaFX macOS libs
+      - name: Rename DMG
         run: |
-          mvn dependency:copy-dependencies -Pdist-mac \
-            -DoutputDirectory=target/javafx-libs-mac \
-            -DincludeGroupIds=org.openjfx \
-            -DincludeClassifiers=mac-aarch64 \
-            -DincludeScope=provided -q
-
-      - name: Package DMG with jpackage
-        run: |
-          APP_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
           TAG_VERSION=${GITHUB_REF_NAME#v}
-          mkdir -p target/app-input target/dist
-          cp target/kafkaview-${APP_VERSION}-fat.jar target/app-input/
-          $JAVA_HOME/bin/jpackage \
-            --type dmg \
-            --name Kafkana \
-            --input target/app-input \
-            --main-jar kafkaview-${APP_VERSION}-fat.jar \
-            --main-class com.mezentsev.kafkana.MainApp \
-            --module-path target/javafx-libs-mac \
-            --add-modules javafx.controls,javafx.base,javafx.graphics,java.naming,java.management,java.security.sasl,java.security.jgss \
-            --dest target/dist \
-            --app-version ${APP_VERSION} \
-            --java-options "-Dfile.encoding=UTF-8"
-          mv target/dist/Kafkana-${APP_VERSION}.dmg target/dist/Kafkana-${TAG_VERSION}-mac.dmg
+          mv target/dist/*.dmg target/dist/Kafkana-${TAG_VERSION}-mac.dmg
 
       - uses: actions/upload-artifact@v4
         with:
