@@ -307,7 +307,7 @@
                                         <delete dir="${project.build.directory}/dist"/>
                                         <copy file="${project.build.directory}/${project.build.finalName}-fat.jar"
                                               tofile="${project.build.directory}/app-input/${project.build.finalName}.jar"/>
-                                        <exec executable="/usr/bin/jpackage" failonerror="true">
+                                        <exec executable="${java.home}/bin/jpackage" failonerror="true">
                                             <arg value="--type"/>
                                             <arg value="dmg"/>
                                             <arg value="--name"/>
@@ -320,6 +320,102 @@
                                             <arg value="com.mezentsev.kafkana.MainApp"/>
                                             <arg value="--module-path"/>
                                             <arg value="${project.build.directory}/javafx-libs-mac"/>
+                                            <arg value="--add-modules"/>
+                                            <arg value="javafx.controls,javafx.base,javafx.graphics,java.naming,java.management,java.security.sasl,java.security.jgss"/>
+                                            <arg value="--dest"/>
+                                            <arg value="${project.build.directory}/dist"/>
+                                            <arg value="--app-version"/>
+                                            <arg value="${project.version}"/>
+                                            <arg value="--java-options"/>
+                                            <arg value="-Dfile.encoding=UTF-8"/>
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!--
+            dist-linux profile: builds a self-contained Linux .deb package using jpackage.
+            Usage: mvn verify -Pdist-linux
+            Output: target/dist/kafkana_0.6.0-1_amd64.deb
+            Requires: fakeroot (sudo apt-get install fakeroot)
+        -->
+        <profile>
+            <id>dist-linux</id>
+            <dependencies>
+                <dependency>
+                    <groupId>org.openjfx</groupId>
+                    <artifactId>javafx-controls</artifactId>
+                    <version>${javafx.version}</version>
+                    <classifier>linux</classifier>
+                    <scope>provided</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.openjfx</groupId>
+                    <artifactId>javafx-base</artifactId>
+                    <version>${javafx.version}</version>
+                    <classifier>linux</classifier>
+                    <scope>provided</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.openjfx</groupId>
+                    <artifactId>javafx-graphics</artifactId>
+                    <version>${javafx.version}</version>
+                    <classifier>linux</classifier>
+                    <scope>provided</scope>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <version>${maven.dependency.plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>copy-javafx-linux</id>
+                                <phase>verify</phase>
+                                <goals><goal>copy-dependencies</goal></goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.directory}/javafx-libs-linux</outputDirectory>
+                                    <includeGroupIds>org.openjfx</includeGroupIds>
+                                    <includeClassifiers>linux</includeClassifiers>
+                                    <includeScope>provided</includeScope>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>${maven.antrun.plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>prepare-and-package-linux</id>
+                                <phase>verify</phase>
+                                <goals><goal>run</goal></goals>
+                                <configuration>
+                                    <target>
+                                        <mkdir dir="${project.build.directory}/app-input"/>
+                                        <delete dir="${project.build.directory}/dist"/>
+                                        <copy file="${project.build.directory}/${project.build.finalName}-fat.jar"
+                                              tofile="${project.build.directory}/app-input/${project.build.finalName}.jar"/>
+                                        <exec executable="${java.home}/bin/jpackage" failonerror="true">
+                                            <arg value="--type"/>
+                                            <arg value="deb"/>
+                                            <arg value="--name"/>
+                                            <arg value="kafkana"/>
+                                            <arg value="--input"/>
+                                            <arg value="${project.build.directory}/app-input"/>
+                                            <arg value="--main-jar"/>
+                                            <arg value="${project.build.finalName}.jar"/>
+                                            <arg value="--main-class"/>
+                                            <arg value="com.mezentsev.kafkana.MainApp"/>
+                                            <arg value="--module-path"/>
+                                            <arg value="${project.build.directory}/javafx-libs-linux"/>
                                             <arg value="--add-modules"/>
                                             <arg value="javafx.controls,javafx.base,javafx.graphics,java.naming,java.management,java.security.sasl,java.security.jgss"/>
                                             <arg value="--dest"/>

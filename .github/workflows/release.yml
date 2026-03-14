@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-mac:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build macOS DMG
+        run: mvn verify -Pdist-mac -q
+
+      - name: Rename DMG
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          mv target/dist/*.dmg target/dist/Kafkana-${VERSION}-mac.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-dmg
+          path: target/dist/Kafkana-*-mac.dmg
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build Windows app-image
+        run: mvn verify -Pdist -q
+
+      - name: Zip and rename
+        shell: pwsh
+        run: |
+          $version = "$env:GITHUB_REF_NAME".TrimStart('v')
+          Compress-Archive -Path target\dist\Kafkana -DestinationPath "target\dist\Kafkana-${version}-windows.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: target/dist/Kafkana-*-windows.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install jpackage dependencies
+        run: sudo apt-get install -y fakeroot binutils
+
+      - name: Build Linux .deb
+        run: mvn verify -Pdist-linux -q
+
+      - name: Rename .deb
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          mv target/dist/*.deb target/dist/Kafkana-${VERSION}-linux.deb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: target/dist/Kafkana-*-linux.deb
+
+  release:
+    needs: [build-mac, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Kafkana ${{ github.ref_name }}"
+          generate_release_notes: true
+          files: artifacts/*
