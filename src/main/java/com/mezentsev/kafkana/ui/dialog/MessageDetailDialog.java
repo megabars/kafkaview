@@ -176,7 +176,10 @@ public class MessageDetailDialog {
             resendButton.setPrefWidth(160);
             resendButton.setOnAction(e -> {
                 dialogStage.close();
-                onResend.run();
+                // Platform.runLater необходим: showAndWait() нового диалога нельзя
+                // вызывать прямо в обработчике закрывающегося окна — FX не успевает
+                // завершить закрытие, и второй диалог зависает.
+                javafx.application.Platform.runLater(onResend::run);
             });
             buttons.getChildren().add(resendButton);
         }
