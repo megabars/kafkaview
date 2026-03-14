@@ -1,5 +1,6 @@
 package com.kafkaview.ui.dialog;
 
+import com.kafkaview.model.KafkaMessage;
 import com.kafkaview.service.KafkaService;
 import com.kafkaview.ui.UiUtils;
 import javafx.application.Platform;
@@ -43,6 +44,10 @@ public class SendMessageDialog {
     private boolean wasSent = false;
 
     public SendMessageDialog(KafkaService kafkaService, String topic, Stage ownerStage) {
+        this(kafkaService, topic, ownerStage, null);
+    }
+
+    public SendMessageDialog(KafkaService kafkaService, String topic, Stage ownerStage, KafkaMessage prefill) {
         this.kafkaService = kafkaService;
         this.topic = topic;
 
@@ -51,7 +56,7 @@ public class SendMessageDialog {
         dialogStage.initOwner(ownerStage);
         dialogStage.initModality(Modality.APPLICATION_MODAL);
         dialogStage.setResizable(true);
-        dialogStage.setScene(new Scene(buildContent(), 520, 500));
+        dialogStage.setScene(new Scene(buildContent(prefill), 520, 500));
     }
 
     /**
@@ -63,7 +68,7 @@ public class SendMessageDialog {
         return wasSent;
     }
 
-    private VBox buildContent() {
+    private VBox buildContent(KafkaMessage prefill) {
         Label topicLabel = new Label("Топик: " + topic);
         topicLabel.setFont(Font.font(null, FontWeight.BOLD, 13));
 
@@ -125,15 +130,26 @@ public class SendMessageDialog {
                 buttons
         );
         content.setPadding(new Insets(20));
+
+        if (prefill != null) {
+            keyField.setText(prefill.getKey());
+            valueArea.setText(prefill.getValue());
+            prefill.getHeaders().forEach(this::addHeaderRow);
+        }
+
         return content;
     }
 
     private void addHeaderRow() {
-        TextField nameField = new TextField();
+        addHeaderRow("", "");
+    }
+
+    private void addHeaderRow(String name, String value) {
+        TextField nameField = new TextField(name);
         nameField.setPromptText("Название");
         nameField.setPrefWidth(160);
 
-        TextField valueField = new TextField();
+        TextField valueField = new TextField(value);
         valueField.setPromptText("Значение");
         HBox.setHgrow(valueField, Priority.ALWAYS);
 

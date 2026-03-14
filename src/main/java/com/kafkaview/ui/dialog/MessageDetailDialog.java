@@ -59,12 +59,18 @@ public class MessageDetailDialog {
 
     private final KafkaMessage message;
     private final Stage dialogStage;
+    private final Runnable onResend;
 
     private TextArea textArea;
     private Label errorLabel;
 
     public MessageDetailDialog(KafkaMessage message, Stage ownerStage) {
+        this(message, ownerStage, null);
+    }
+
+    public MessageDetailDialog(KafkaMessage message, Stage ownerStage, Runnable onResend) {
         this.message = message;
+        this.onResend = onResend;
 
         dialogStage = new Stage();
         dialogStage.setTitle("Детали сообщения");
@@ -139,14 +145,26 @@ public class MessageDetailDialog {
         // --- Смена формата при выборе в списке ---
         formatBox.valueProperty().addListener((obs, oldVal, newVal) -> applyFormat(newVal));
 
-        // --- Кнопка закрытия ---
+        // --- Кнопки ---
         Button closeButton = new Button("Закрыть");
         closeButton.setDefaultButton(true);
         closeButton.setPrefWidth(90);
         closeButton.setOnAction(e -> dialogStage.close());
 
-        HBox buttons = new HBox(closeButton);
+        HBox buttons = new HBox(10);
         buttons.setAlignment(Pos.CENTER_RIGHT);
+
+        if (onResend != null) {
+            Button resendButton = new Button("Отправить повторно");
+            resendButton.setPrefWidth(160);
+            resendButton.setOnAction(e -> {
+                dialogStage.close();
+                javafx.application.Platform.runLater(onResend::run);
+            });
+            buttons.getChildren().add(resendButton);
+        }
+
+        buttons.getChildren().add(closeButton);
 
         VBox content = new VBox(10,
                 meta,

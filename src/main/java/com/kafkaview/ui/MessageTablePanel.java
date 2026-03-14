@@ -13,6 +13,9 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
+import javafx.beans.binding.Bindings;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.Tooltip;
@@ -83,7 +86,7 @@ public class MessageTablePanel {
                 buildOffsetColumn()
         );
 
-        // Двойной клик — открыть детальное окно
+        // Двойной клик — открыть детальное окно; ПКМ — контекстное меню
         tableView.setRowFactory(tv -> {
             TableRow<KafkaMessage> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
@@ -91,6 +94,19 @@ public class MessageTablePanel {
                     openDetailDialog(row.getItem());
                 }
             });
+
+            MenuItem resendItem = new MenuItem("Повторно отправить");
+            resendItem.setOnAction(e -> {
+                KafkaMessage msg = row.getItem();
+                if (msg != null) openSendDialogWithPrefill(msg);
+            });
+            ContextMenu contextMenu = new ContextMenu(resendItem);
+            row.contextMenuProperty().bind(
+                Bindings.when(row.emptyProperty())
+                    .then((ContextMenu) null)
+                    .otherwise(contextMenu)
+            );
+
             return row;
         });
 
@@ -208,12 +224,20 @@ public class MessageTablePanel {
     }
 
     private void openDetailDialog(KafkaMessage message) {
-        MessageDetailDialog dialog = new MessageDetailDialog(message, ownerStage);
+        MessageDetailDialog dialog = new MessageDetailDialog(message, ownerStage,
+                () -> openSendDialogWithPrefill(message));
         dialog.showAndWait();
     }
 
     private void openSendDialog() {
         SendMessageDialog dialog = new SendMessageDialog(kafkaService, currentTopic, ownerStage);
+        if (dialog.showAndWait()) {
+            loadMessages(currentTopic);
+        }
+    }
+
+    private void openSendDialogWithPrefill(KafkaMessage prefill) {
+        SendMessageDialog dialog = new SendMessageDialog(kafkaService, currentTopic, ownerStage, prefill);
         if (dialog.showAndWait()) {
             loadMessages(currentTopic);
         }
