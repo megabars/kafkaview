@@ -1,8 +1,8 @@
-package com.kafkaview.ui.dialog;
+package com.mezentsev.kafkana.ui.dialog;
 
-import com.kafkaview.model.KafkaMessage;
-import com.kafkaview.service.KafkaService;
-import com.kafkaview.ui.UiUtils;
+import com.mezentsev.kafkana.model.KafkaMessage;
+import com.mezentsev.kafkana.service.KafkaService;
+import com.mezentsev.kafkana.ui.UiUtils;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;

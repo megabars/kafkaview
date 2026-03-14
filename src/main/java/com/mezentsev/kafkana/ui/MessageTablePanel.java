@@ -1,9 +1,9 @@
-package com.kafkaview.ui;
+package com.mezentsev.kafkana.ui;
 
-import com.kafkaview.model.KafkaMessage;
-import com.kafkaview.service.KafkaService;
-import com.kafkaview.ui.dialog.MessageDetailDialog;
-import com.kafkaview.ui.dialog.SendMessageDialog;
+import com.mezentsev.kafkana.model.KafkaMessage;
+import com.mezentsev.kafkana.service.KafkaService;
+import com.mezentsev.kafkana.ui.dialog.MessageDetailDialog;
+import com.mezentsev.kafkana.ui.dialog.SendMessageDialog;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -53,6 +53,7 @@ public class MessageTablePanel {
     private final Button prevButton;
     private final Button nextButton;
     private final Button sendButton;
+    private final Button reloadButton;
     private final VBox root;
 
     private Stage ownerStage;
@@ -73,16 +74,25 @@ public class MessageTablePanel {
         sendButton.setDisable(true);
         sendButton.setOnAction(e -> openSendDialog());
 
+        reloadButton = new Button("⟳");
+        reloadButton.setDisable(true);
+        reloadButton.setStyle("-fx-font-size: 16px;");
+        reloadButton.setTooltip(new Tooltip("Обновить сообщения"));
+        reloadButton.setOnAction(e -> loadMessages(currentTopic));
+
         tableView = new TableView<>(pageItems);
         tableView.setPlaceholder(new Label("Выберите топик слева"));
         tableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         VBox.setVgrow(tableView, Priority.ALWAYS);
 
+        // Порядок колонок: Партиция, Сообщение, Дата создания, Ключ, Offset.
+        // CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN растягивает последнюю колонку (Offset)
+        // на оставшееся место; у остальных колонок ширина задана через min/max/pref.
         tableView.getColumns().addAll(
-                buildValueColumn(),
-                buildKeyColumn(),
-                buildTimestampColumn(),
                 buildPartitionColumn(),
+                buildValueColumn(),
+                buildTimestampColumn(),
+                buildKeyColumn(),
                 buildOffsetColumn()
         );
 
@@ -137,7 +147,7 @@ public class MessageTablePanel {
         statusLabel = new Label();
         statusLabel.getStyleClass().add("status-label");
 
-        HBox header = new HBox(10, titleLabel, sendButton);
+        HBox header = new HBox(10, titleLabel, reloadButton, sendButton);
         header.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
@@ -160,6 +170,7 @@ public class MessageTablePanel {
 
         currentTopic = topic;
         sendButton.setDisable(false);
+        reloadButton.setDisable(false);
         titleLabel.setText("Сообщения — " + topic);
         setStatusNormal("Загрузка...");
         allMessages.clear();
@@ -262,7 +273,8 @@ public class MessageTablePanel {
     private TableColumn<KafkaMessage, String> buildValueColumn() {
         TableColumn<KafkaMessage, String> col = new TableColumn<>("Сообщение");
         col.setCellValueFactory(data -> data.getValue().valueProperty());
-        col.setPrefWidth(420);
+        col.setPrefWidth(400);
+        col.setMinWidth(150);
         col.setComparator(String::compareToIgnoreCase);
 
         col.setCellFactory(c -> new TableCell<>() {

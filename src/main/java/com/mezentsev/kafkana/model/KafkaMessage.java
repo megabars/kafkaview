@@ -1,4 +1,4 @@
-package com.kafkaview.model;
+package com.mezentsev.kafkana.model;
 
 import javafx.beans.property.ReadOnlyIntegerProperty;
 import javafx.beans.property.ReadOnlyLongProperty;

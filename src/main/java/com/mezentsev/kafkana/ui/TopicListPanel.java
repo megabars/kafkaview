@@ -1,6 +1,6 @@
-package com.kafkaview.ui;
+package com.mezentsev.kafkana.ui;
 
-import com.kafkaview.service.KafkaService;
+import com.mezentsev.kafkana.service.KafkaService;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.Node;

@@ -1,4 +1,4 @@
-package com.kafkaview.ui;
+package com.mezentsev.kafkana.ui;
 
 import javafx.scene.control.Label;
 

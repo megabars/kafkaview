@@ -1,6 +1,6 @@
-package com.kafkaview.ui.dialog;
+package com.mezentsev.kafkana.ui.dialog;
 
-import com.kafkaview.model.KafkaMessage;
+import com.mezentsev.kafkana.model.KafkaMessage;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -50,6 +50,12 @@ public class MessageDetailDialog {
         try {
             TransformerFactory factory = TransformerFactory.newInstance();
             factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            // Запрещаем внешние DTD и таблицы стилей — полная защита от XXE-атак.
+            // FEATURE_SECURE_PROCESSING сам по себе не гарантирует отключения внешних сущностей
+            // во всех реализациях (зависит от JRE/provider), поэтому дополнительно явно
+            // ограничиваем доступ к внешним ресурсам.
+            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
             factory.setAttribute("indent-number", 4);
             return factory;
         } catch (Exception e) {

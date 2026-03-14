@@ -1,7 +1,7 @@
-package com.kafkaview.service;
+package com.mezentsev.kafkana.service;
 
-import com.kafkaview.model.ConnectionSettings;
-import com.kafkaview.model.KafkaMessage;
+import com.mezentsev.kafkana.model.ConnectionSettings;
+import com.mezentsev.kafkana.model.KafkaMessage;
 import javafx.application.Platform;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
@@ -93,6 +93,9 @@ public class KafkaService {
             try (AdminClient admin = AdminClient.create(props)) {
                 return admin.listTopics(new ListTopicsOptions().timeoutMs(ADMIN_TIMEOUT_MS))
                         .names()
+                        // Future.get() таймаут устанавливаем чуть больше Kafka-таймаута,
+                        // чтобы Kafka успела обработать свой таймаут и вернуть ответ
+                        // до того, как Future.get() прервёт ожидание.
                         .get(ADMIN_TIMEOUT_MS + 2_000, TimeUnit.MILLISECONDS)
                         .stream()
                         .sorted()
@@ -121,6 +124,7 @@ public class KafkaService {
             try (AdminClient admin = AdminClient.create(props)) {
                 admin.listTopics(new ListTopicsOptions().timeoutMs(TEST_TIMEOUT_MS))
                         .names()
+                        // +2000 мс — буфер для Kafka, аналогично listTopics()
                         .get(TEST_TIMEOUT_MS + 2_000L, TimeUnit.MILLISECONDS);
                 log.info("Проверка соединения успешна: {}", bootstrapServers);
                 return true;
@@ -265,6 +269,13 @@ public class KafkaService {
                 p.send(record).get(); // .get() блокирует до подтверждения; flush() не нужен
                 log.info("Сообщение отправлено в топик '{}' ({} заголовков)", topic, headers.size());
             } catch (Exception e) {
+                // Инвалидируем producer: после ошибки отправки его состояние непредсказуемо.
+                // При следующем вызове sendMessage() будет создан новый экземпляр.
+                if (producer != null) {
+                    try { producer.close(Duration.ZERO); } catch (Exception ignored) {}
+                    producer = null;
+                    producerBootstrap = null;
+                }
                 log.error("Не удалось отправить сообщение в топик '{}'", topic, e);
                 throw new RuntimeException("Не удалось отправить сообщение в топик \""
                         + topic + "\": " + e.getMessage(), e);
@@ -348,7 +359,7 @@ public class KafkaService {
         // Фиксированный group ID: используем assign(), group coordinator не задействован,
         // но GROUP_ID требуется некоторыми брокерами для AdminAPI-совместимости.
         // UUID не нужен — одна постоянная группа не засоряет метаданные кластера.
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "kafkaview-readonly");
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "kafkana-readonly");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");

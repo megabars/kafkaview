@@ -1,4 +1,4 @@
-package com.kafkaview.model;
+package com.mezentsev.kafkana.model;
 
 public class ConnectionSettings {
 

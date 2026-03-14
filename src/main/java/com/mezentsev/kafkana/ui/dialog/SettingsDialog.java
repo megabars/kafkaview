@@ -1,7 +1,7 @@
-package com.kafkaview.ui.dialog;
+package com.mezentsev.kafkana.ui.dialog;
 
-import com.kafkaview.model.ConnectionSettings;
-import com.kafkaview.service.KafkaService;
+import com.mezentsev.kafkana.model.ConnectionSettings;
+import com.mezentsev.kafkana.service.KafkaService;
 import javafx.application.Platform;
 import java.util.regex.Pattern;
 import javafx.geometry.Insets;

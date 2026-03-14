@@ -1,9 +1,9 @@
-package com.kafkaview;
+package com.mezentsev.kafkana;
 
-import com.kafkaview.model.ConnectionSettings;
-import com.kafkaview.model.SettingsPersistence;
-import com.kafkaview.service.KafkaService;
-import com.kafkaview.ui.MainWindow;
+import com.mezentsev.kafkana.model.ConnectionSettings;
+import com.mezentsev.kafkana.model.SettingsPersistence;
+import com.mezentsev.kafkana.service.KafkaService;
+import com.mezentsev.kafkana.ui.MainWindow;
 import javafx.application.Application;
 import javafx.stage.Stage;
 

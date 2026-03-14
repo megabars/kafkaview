@@ -1,9 +1,10 @@
-package com.kafkaview.ui;
+package com.mezentsev.kafkana.ui;
 
-import com.kafkaview.model.ConnectionSettings;
-import com.kafkaview.model.SettingsPersistence;
-import com.kafkaview.service.KafkaService;
-import com.kafkaview.ui.dialog.SettingsDialog;
+import com.mezentsev.kafkana.model.ConnectionSettings;
+import com.mezentsev.kafkana.model.SettingsPersistence;
+import com.mezentsev.kafkana.service.KafkaService;
+import com.mezentsev.kafkana.ui.dialog.AboutDialog;
+import com.mezentsev.kafkana.ui.dialog.SettingsDialog;
 import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.scene.control.Menu;
@@ -52,9 +53,9 @@ public class MainWindow {
         VBox.setVgrow(splitPane, Priority.ALWAYS);
 
         Scene scene = new Scene(root, 1100, 700);
-        scene.getStylesheets().add(getClass().getResource("/com/kafkaview/app.css").toExternalForm());
+        scene.getStylesheets().add(getClass().getResource("/com/mezentsev/kafkana/app.css").toExternalForm());
         primaryStage.setScene(scene);
-        primaryStage.setTitle("KafkaView");
+        primaryStage.setTitle("Kafkana");
         primaryStage.setMinWidth(750);
         primaryStage.setMinHeight(450);
 
@@ -76,7 +77,14 @@ public class MainWindow {
         Menu settingsMenu = new Menu("Настройки");
         settingsMenu.getItems().add(configureItem);
 
-        MenuBar menuBar = new MenuBar(fileMenu, settingsMenu);
+        // --- Меню "Справка" ---
+        MenuItem aboutItem = new MenuItem("О программе...");
+        aboutItem.setOnAction(e -> new AboutDialog(ownerStage).showAndWait());
+
+        Menu helpMenu = new Menu("Справка");
+        helpMenu.getItems().add(aboutItem);
+
+        MenuBar menuBar = new MenuBar(fileMenu, settingsMenu, helpMenu);
         menuBar.setUseSystemMenuBar(true);
         return menuBar;
     }
