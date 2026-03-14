@@ -18,9 +18,14 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import org.apache.kafka.common.header.Header;
+import org.apache.kafka.common.header.internals.RecordHeader;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 public class SendMessageDialog {
-
 
     private final KafkaService kafkaService;
     private final String topic;
@@ -29,11 +34,13 @@ public class SendMessageDialog {
     private TextField keyField;
     private TextArea valueArea;
     private Button sendButton;
-    private Button cancelButton;
+    private Button closeButton;
     private Label statusLabel;
     private Label validationLabel;
+    private VBox headersBox;
 
-    private boolean confirmed = false;
+    // true если хотя бы одно сообщение было успешно отправлено в этом сеансе
+    private boolean wasSent = false;
 
     public SendMessageDialog(KafkaService kafkaService, String topic, Stage ownerStage) {
         this.kafkaService = kafkaService;
@@ -44,16 +51,16 @@ public class SendMessageDialog {
         dialogStage.initOwner(ownerStage);
         dialogStage.initModality(Modality.APPLICATION_MODAL);
         dialogStage.setResizable(true);
-        dialogStage.setScene(new Scene(buildContent(), 520, 380));
+        dialogStage.setScene(new Scene(buildContent(), 520, 500));
     }
 
     /**
      * Показывает диалог и ждёт закрытия.
-     * @return true, если сообщение успешно отправлено
+     * @return true, если хотя бы одно сообщение было успешно отправлено
      */
     public boolean showAndWait() {
         dialogStage.showAndWait();
-        return confirmed;
+        return wasSent;
     }
 
     private VBox buildContent() {
@@ -64,6 +71,17 @@ public class SendMessageDialog {
         keyField = new TextField();
         keyField.setPromptText("Оставьте пустым, если ключ не нужен");
 
+        // --- Секция заголовков ---
+        Label headersLabel = new Label("Заголовки:");
+        headersLabel.setFont(Font.font(null, FontWeight.BOLD, 12));
+
+        Button addHeaderBtn = new Button("+ Добавить заголовок");
+        addHeaderBtn.setOnAction(e -> addHeaderRow());
+
+        headersBox = new VBox(4, addHeaderBtn);
+        headersBox.setPadding(new Insets(0));
+
+        // --- Секция сообщения ---
         Label valueLabel = new Label("Сообщение:");
         valueLabel.setFont(Font.font(null, FontWeight.BOLD, 12));
 
@@ -84,11 +102,11 @@ public class SendMessageDialog {
         sendButton.setPrefWidth(100);
         sendButton.setOnAction(e -> onSend());
 
-        cancelButton = new Button("Отмена");
-        cancelButton.setPrefWidth(80);
-        cancelButton.setOnAction(e -> dialogStage.close());
+        closeButton = new Button("Закрыть");
+        closeButton.setPrefWidth(80);
+        closeButton.setOnAction(e -> dialogStage.close());
 
-        HBox buttons = new HBox(10, statusLabel, cancelButton, sendButton);
+        HBox buttons = new HBox(10, statusLabel, closeButton, sendButton);
         buttons.setAlignment(Pos.CENTER_RIGHT);
         HBox.setHgrow(statusLabel, Priority.ALWAYS);
 
@@ -97,6 +115,9 @@ public class SendMessageDialog {
                 new Separator(),
                 keyLabel,
                 keyField,
+                headersLabel,
+                headersBox,
+                new Separator(),
                 valueLabel,
                 valueArea,
                 validationLabel,
@@ -105,6 +126,43 @@ public class SendMessageDialog {
         );
         content.setPadding(new Insets(20));
         return content;
+    }
+
+    private void addHeaderRow() {
+        TextField nameField = new TextField();
+        nameField.setPromptText("Название");
+        nameField.setPrefWidth(160);
+
+        TextField valueField = new TextField();
+        valueField.setPromptText("Значение");
+        HBox.setHgrow(valueField, Priority.ALWAYS);
+
+        Button removeBtn = new Button("×");
+        removeBtn.getStyleClass().add("header-remove-btn");
+
+        HBox row = new HBox(6, nameField, valueField, removeBtn);
+        row.setAlignment(Pos.CENTER_LEFT);
+
+        removeBtn.setOnAction(e -> headersBox.getChildren().remove(row));
+
+        // Вставляем строку перед кнопкой «+ Добавить заголовок» (последний элемент)
+        int insertIndex = headersBox.getChildren().size() - 1;
+        headersBox.getChildren().add(insertIndex, row);
+    }
+
+    private List<Header> collectHeaders() {
+        List<Header> headers = new ArrayList<>();
+        for (var node : headersBox.getChildren()) {
+            if (!(node instanceof HBox row)) continue;
+            if (row.getChildren().size() < 2) continue;
+            if (!(row.getChildren().get(0) instanceof TextField nameField)) continue;
+            if (!(row.getChildren().get(1) instanceof TextField valueField)) continue;
+            String name = nameField.getText().trim();
+            if (name.isEmpty()) continue;
+            String val = valueField.getText();
+            headers.add(new RecordHeader(name, val.getBytes(StandardCharsets.UTF_8)));
+        }
+        return headers;
     }
 
     private void onSend() {
@@ -116,22 +174,25 @@ public class SendMessageDialog {
         validationLabel.setText("");
 
         String key = keyField.getText().trim();
+        List<Header> headers = collectHeaders();
 
         sendButton.setDisable(true);
-        cancelButton.setDisable(true);
+        closeButton.setDisable(true);
         UiUtils.setStatusNormal(statusLabel, "Отправка...");
 
-        kafkaService.sendMessage(topic, key, value)
+        kafkaService.sendMessage(topic, key, value, headers)
                 .thenRunAsync(() -> {
-                    confirmed = true;
-                    dialogStage.close();
+                    wasSent = true;
+                    UiUtils.setStatusNormal(statusLabel, "Сообщение отправлено");
+                    sendButton.setDisable(false);
+                    closeButton.setDisable(false);
                 }, Platform::runLater)
                 .exceptionallyAsync(ex -> {
                     Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                     String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
                     UiUtils.setStatusError(statusLabel, "Ошибка: " + msg);
                     sendButton.setDisable(false);
-                    cancelButton.setDisable(false);
+                    closeButton.setDisable(false);
                     return null;
                 }, Platform::runLater);
     }

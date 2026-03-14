@@ -11,6 +11,8 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import java.util.Map;
 
 public class KafkaMessage {
 
@@ -22,13 +24,16 @@ public class KafkaMessage {
     private final SimpleLongProperty timestamp;
     private final SimpleIntegerProperty partition;
     private final SimpleLongProperty offset;
+    private final Map<String, String> headers;
 
-    public KafkaMessage(String key, String value, long timestamp, int partition, long offset) {
+    public KafkaMessage(String key, String value, long timestamp, int partition, long offset,
+                        Map<String, String> headers) {
         this.key       = new SimpleStringProperty(key   != null ? key   : "");
         this.value     = new SimpleStringProperty(value != null ? value : "");
         this.timestamp = new SimpleLongProperty(timestamp);
         this.partition = new SimpleIntegerProperty(partition);
         this.offset    = new SimpleLongProperty(offset);
+        this.headers   = headers != null ? headers : Collections.emptyMap();
     }
 
     // --- key ---
@@ -79,6 +84,12 @@ public class KafkaMessage {
 
     public ReadOnlyLongProperty offsetProperty() {
         return offset;
+    }
+
+    // --- headers ---
+
+    public Map<String, String> getHeaders() {
+        return headers;
     }
 
     // --- helpers ---

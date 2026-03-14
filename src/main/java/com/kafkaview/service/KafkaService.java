@@ -14,14 +14,17 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -210,8 +213,13 @@ public class KafkaService {
                         List<KafkaMessage> batch = new ArrayList<>(records.count());
                         for (ConsumerRecord<String, String> r : records) {
                             if (collected >= maxMessages) break;
+                            Map<String, String> hdrs = new LinkedHashMap<>();
+                            for (Header h : r.headers()) {
+                                hdrs.put(h.key(), h.value() == null ? ""
+                                        : new String(h.value(), StandardCharsets.UTF_8));
+                            }
                             batch.add(new KafkaMessage(
-                                    r.key(), r.value(), r.timestamp(), r.partition(), r.offset()));
+                                    r.key(), r.value(), r.timestamp(), r.partition(), r.offset(), hdrs));
                             collected++;
                         }
                         if (!batch.isEmpty()) {
@@ -245,14 +253,17 @@ public class KafkaService {
     // Отправка сообщения в топик
     // -----------------------------------------------------------------------
 
-    public CompletableFuture<Void> sendMessage(String topic, String key, String value) {
+    public CompletableFuture<Void> sendMessage(String topic, String key, String value, List<Header> headers) {
         return CompletableFuture.runAsync(() -> {
             try {
                 KafkaProducer<String, String> p = getOrCreateProducer();
                 String resolvedKey = (key == null || key.isBlank()) ? null : key;
                 ProducerRecord<String, String> record = new ProducerRecord<>(topic, resolvedKey, value);
+                for (Header h : headers) {
+                    record.headers().add(h);
+                }
                 p.send(record).get(); // .get() блокирует до подтверждения; flush() не нужен
-                log.info("Сообщение отправлено в топик '{}'", topic);
+                log.info("Сообщение отправлено в топик '{}' ({} заголовков)", topic, headers.size());
             } catch (Exception e) {
                 log.error("Не удалось отправить сообщение в топик '{}'", topic, e);
                 throw new RuntimeException("Не удалось отправить сообщение в топик \""

@@ -36,12 +36,20 @@ There are no tests or linting configured in this project.
 **Entry point:** `MainApp.java` — extends `javafx.application.Application`, initializes `ConnectionSettings`, `KafkaService`, and `MainWindow`, cleans up on exit.
 
 **Layer structure:**
-- `model/` — `KafkaMessage` (JavaFX observable properties: value, timestamp, partition) and `ConnectionSettings` (bootstrap servers, max messages limit)
-- `service/KafkaService.java` — All Kafka I/O runs on a single-threaded `ExecutorService`; UI updates go through `Platform.runLater()`. Uses `assign()` instead of `subscribe()` to skip consumer group rebalance. `fetchMessagesStreaming()` seeks to the end of each partition and reads backward, delivering batches to a callback as they arrive.
+- `model/` — `KafkaMessage` (JavaFX observable properties: key, value, timestamp, partition, offset), `ConnectionSettings` (bootstrap servers, max messages limit), `SettingsPersistence` (Java Preferences API — macOS: `~/Library/Preferences`, Windows: Registry)
+- `service/KafkaService.java` — Kafka I/O on a **single-threaded** `executor` (preserves producer state across calls) plus a 2-thread `adminExecutor` for `listTopics`/`testConnection` so they don't block ongoing fetches. Uses `assign()` instead of `subscribe()` to skip consumer group rebalance. `fetchMessagesStreaming()` seeks near the tail of each partition and delivers batches to a callback as they arrive. `distributeQuota()` spreads `maxMessages` across partitions proportionally, reallocating from under-filled ones.
 - `ui/MainWindow.java` — Orchestrates the split-pane layout (30% left / 70% right), menu bar (File → Exit, Settings → Connection), and wires topic selection to message loading
 - `ui/TopicListPanel.java` — `ListView` of topics with a refresh button and status label
-- `ui/MessageTablePanel.java` — `TableView` with pagination (30 per page), columns for value/timestamp/partition, double-click opens detail dialog
+- `ui/MessageTablePanel.java` — `TableView` with pagination (30 per page), columns for key/value/timestamp/partition/offset, double-click opens detail dialog, send-message button. Tracks a **generation counter** per fetch; batch callbacks compare generation to discard stale results from cancelled fetches.
+- `ui/UiUtils.java` — Static helpers for switching CSS classes on status labels
 - `ui/dialog/SettingsDialog.java` — Connection config with a "test connection" button
-- `ui/dialog/MessageDetailDialog.java` — Shows full message body with Text/JSON/XML formatting (JSON pretty-printer is hand-rolled; XML uses `javax.xml.transform`)
+- `ui/dialog/MessageDetailDialog.java` — Shows full message body with Text/JSON/XML formatting (JSON pretty-printer is hand-rolled; XML uses `javax.xml.transform` with XXE protection)
+- `ui/dialog/SendMessageDialog.java` — Send a message to the current topic; key is optional, auto-closes on success
+
+**Cancellation:** Each `fetchMessagesStreaming()` call mints a new `AtomicBoolean` token stored in `currentFetchToken`; the previous token is flipped to cancelled. The worker polls the token between polls to exit early.
+
+**Styling:** `src/main/resources/com/kafkaview/app.css` — empty-key cell styling, status label variants (normal/error), connection test result colours.
+
+**Logging:** `src/main/resources/com/kafkaview/simplelogger.properties` — suppresses Kafka client INFO noise; only WARN and above are emitted to stderr.
 
 **Key behavior:** Message loading is bounded by `ConnectionSettings.maxMessages` (default 100). The service seeks near the tail of each partition so only recent messages are fetched.

@@ -1,6 +1,7 @@
 package com.kafkaview.ui.dialog;
 
 import com.kafkaview.model.KafkaMessage;
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -8,6 +9,8 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Separator;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
@@ -18,6 +21,8 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+
+import java.util.Map;
 
 import javax.xml.XMLConstants;
 import javax.xml.transform.OutputKeys;
@@ -99,6 +104,9 @@ public class MessageDetailDialog {
         meta.add(bold("Дата/время:"), 0, 2);
         meta.add(value(message.getFormattedTimestamp()), 1, 2);
 
+        // --- Заголовки сообщения ---
+        VBox headersSection = buildHeadersSection();
+
         // --- Заголовок + выбор формата ---
         Label contentLabel = new Label("Содержимое сообщения:");
         contentLabel.setFont(Font.font(null, FontWeight.BOLD, 13));
@@ -142,6 +150,7 @@ public class MessageDetailDialog {
 
         VBox content = new VBox(10,
                 meta,
+                headersSection,
                 new Separator(),
                 toolbar,
                 textArea,
@@ -150,6 +159,41 @@ public class MessageDetailDialog {
         );
         content.setPadding(new Insets(15));
         return content;
+    }
+
+    private VBox buildHeadersSection() {
+        Map<String, String> headers = message.getHeaders();
+        VBox section = new VBox(6);
+
+        if (headers.isEmpty()) {
+            section.setVisible(false);
+            section.setManaged(false);
+            return section;
+        }
+
+        Label title = new Label("Заголовки:");
+        title.setFont(Font.font(null, FontWeight.BOLD, 13));
+
+        TableView<Map.Entry<String, String>> table = new TableView<>();
+        table.setEditable(false);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPrefHeight(Math.min(headers.size(), 5) * 28.0 + 30);
+
+        TableColumn<Map.Entry<String, String>, String> keyCol = new TableColumn<>("Ключ");
+        keyCol.setCellValueFactory(cd ->
+                new javafx.beans.property.SimpleStringProperty(cd.getValue().getKey()));
+        keyCol.setPrefWidth(220);
+
+        TableColumn<Map.Entry<String, String>, String> valCol = new TableColumn<>("Значение");
+        valCol.setCellValueFactory(cd ->
+                new javafx.beans.property.SimpleStringProperty(cd.getValue().getValue()));
+
+        table.getColumns().add(keyCol);
+        table.getColumns().add(valCol);
+        table.setItems(FXCollections.observableArrayList(headers.entrySet()));
+
+        section.getChildren().addAll(title, table);
+        return section;
     }
 
     private void applyFormat(String format) {
