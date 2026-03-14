@@ -1,49 +1,317 @@
-/* Ячейка колонки «Ключ» когда ключ пуст */
-.table-cell:empty-key {
-    -fx-text-fill: #aaaaaa;
+/* ============================================================
+   KAFKANA — Dark Gray Theme
+   Primary bg: #868383 | Accent: #d4a55a
+   ============================================================ */
+
+/* --- Root: override Modena base colors --- */
+.root {
+    -fx-base:                        #868383;
+    -fx-background:                  #868383;
+    -fx-control-inner-background:    #ffffff;
+    -fx-control-inner-background-alt: #f5f5f5;
+    -fx-accent:                      #d4a55a;
+    -fx-focus-color:                 #d4a55a;
+    -fx-faint-focus-color:           rgba(212, 165, 90, 0.3);
+    -fx-text-base-color:             #1a1818;
+    -fx-text-background-color:       #1a1818;
 }
 
-/* Статусные метки (используются в TopicListPanel, MessageTablePanel, SendMessageDialog) */
+/* --- Labels on gray window background --- */
+.label {
+    -fx-text-fill: #f2f0f0;
+}
+
+/* --- Buttons --- */
+.button {
+    -fx-background-color: #6b6868;
+    -fx-text-fill: #f2f0f0;
+    -fx-border-color: #5a5757;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 5 12 5 12;
+    -fx-cursor: hand;
+}
+.button:hover {
+    -fx-background-color: #7a7777;
+}
+.button:pressed {
+    -fx-background-color: #5a5757;
+}
+.button:disabled {
+    -fx-opacity: 0.5;
+}
+.button:default {
+    -fx-background-color: #d4a55a;
+    -fx-text-fill: #1a1818;
+    -fx-font-weight: bold;
+    -fx-border-color: #c4924a;
+}
+.button:default:hover {
+    -fx-background-color: #c4924a;
+}
+.button:default:pressed {
+    -fx-background-color: #b4823a;
+}
+
+/* --- TextField / TextArea --- */
+.text-field, .text-area {
+    -fx-background-color: white;
+    -fx-text-fill: #1a1818;
+    -fx-prompt-text-fill: #aaaaaa;
+    -fx-border-color: #b0adad;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-highlight-fill: #d4a55a;
+    -fx-highlight-text-fill: #1a1818;
+}
+.text-field:focused, .text-area:focused {
+    -fx-border-color: #d4a55a;
+}
+.text-area .content {
+    -fx-background-color: white;
+}
+
+/* --- ListView (список топиков) --- */
+.list-view {
+    -fx-background-color: white;
+    -fx-border-color: #b0adad;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+.list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #1a1818;
+    -fx-padding: 5 8 5 8;
+}
+.list-cell:odd {
+    -fx-background-color: #f5f5f5;
+}
+.list-cell:selected {
+    -fx-background-color: #d4a55a;
+    -fx-text-fill: #1a1818;
+}
+.list-cell:selected:focused {
+    -fx-background-color: #d4a55a;
+}
+.list-cell:hover:!selected {
+    -fx-background-color: rgba(212, 165, 90, 0.25);
+}
+
+/* --- TableView --- */
+.table-view {
+    -fx-background-color: white;
+    -fx-border-color: #b0adad;
+    -fx-border-radius: 4;
+    -fx-table-cell-border-color: #e0dede;
+}
+.table-view .column-header-background {
+    -fx-background-color: #6b6868;
+}
+.table-view .column-header {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent #868383 transparent transparent;
+}
+.table-view .column-header .label {
+    -fx-text-fill: #f2f0f0;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+}
+.table-view .filler {
+    -fx-background-color: #6b6868;
+    -fx-border-color: transparent;
+}
+.table-row-cell {
+    -fx-background-color: white;
+    -fx-text-fill: #1a1818;
+    -fx-border-color: transparent transparent #e0dede transparent;
+}
+.table-row-cell:odd {
+    -fx-background-color: #f5f5f5;
+}
+.table-row-cell:selected {
+    -fx-background-color: #d4a55a;
+}
+.table-row-cell:selected .table-cell {
+    -fx-text-fill: #1a1818;
+}
+.table-row-cell:hover:!selected {
+    -fx-background-color: rgba(212, 165, 90, 0.2);
+}
+.table-cell {
+    -fx-text-fill: #1a1818;
+    -fx-font-size: 12px;
+}
+.table-view .placeholder .label {
+    -fx-text-fill: #999999;
+}
+
+/* Пустой ключ */
+.table-cell:empty-key {
+    -fx-text-fill: #bbbbbb;
+}
+
+/* --- ScrollBar --- */
+.scroll-bar {
+    -fx-background-color: #f0eeee;
+}
+.scroll-bar .track {
+    -fx-background-color: #f0eeee;
+    -fx-border-color: transparent;
+}
+.scroll-bar .thumb {
+    -fx-background-color: #b0adad;
+    -fx-background-radius: 4;
+}
+.scroll-bar .thumb:hover {
+    -fx-background-color: #d4a55a;
+}
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-background-color: #f0eeee;
+    -fx-border-color: transparent;
+}
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+    -fx-background-color: #888888;
+}
+
+/* --- SplitPane --- */
+.split-pane {
+    -fx-background-color: #5a5757;
+}
+.split-pane-divider {
+    -fx-background-color: #5a5757;
+    -fx-padding: 0 2 0 2;
+}
+
+/* --- Separator --- */
+.separator .line {
+    -fx-border-color: #5a5757;
+    -fx-border-width: 1 0 0 0;
+}
+
+/* --- Tooltip --- */
+.tooltip {
+    -fx-background-color: #3a3838;
+    -fx-text-fill: #f2f0f0;
+    -fx-border-color: #5a5757;
+    -fx-font-size: 11px;
+}
+
+/* --- CheckBox --- */
+.check-box .box {
+    -fx-background-color: #6b6868;
+    -fx-border-color: #5a5757;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
+.check-box:selected .mark {
+    -fx-background-color: #d4a55a;
+}
+
+/* ============================================================
+   APPLICATION-SPECIFIC CLASSES
+   ============================================================ */
+
+/* Статусные метки */
 .status-label {
     -fx-font-size: 11px;
-    -fx-text-fill: #666666;
+    -fx-text-fill: #c8c4c4;
 }
-
 .status-label-error {
     -fx-font-size: 11px;
-    -fx-text-fill: #cc0000;
+    -fx-text-fill: #e05252;
 }
 
-/* Подсказки под полями ввода */
+/* Подсказки под полями */
 .hint-label {
     -fx-font-size: 11px;
-    -fx-text-fill: #888888;
+    -fx-text-fill: #c8c4c4;
 }
 
-/* Метки результата проверки соединения (SettingsDialog) */
+/* Результат проверки соединения */
 .test-result-normal {
     -fx-font-size: 12px;
-    -fx-text-fill: #888888;
+    -fx-text-fill: #c8c4c4;
 }
-
 .test-result-warning {
     -fx-font-size: 12px;
-    -fx-text-fill: #cc6600;
+    -fx-text-fill: #e09040;
 }
-
 .test-result-success {
     -fx-font-size: 12px;
-    -fx-text-fill: #007700;
+    -fx-text-fill: #5dba72;
 }
-
 .test-result-error {
     -fx-font-size: 12px;
-    -fx-text-fill: #cc0000;
+    -fx-text-fill: #e05252;
 }
 
-/* Кнопка удаления строки заголовка в SendMessageDialog */
+/* Кнопка удаления заголовка в SendMessageDialog */
 .header-remove-btn {
     -fx-padding: 0 6 0 6;
     -fx-font-size: 12px;
     -fx-cursor: hand;
+    -fx-background-color: #5a5757;
+    -fx-text-fill: #f2f0f0;
+    -fx-border-color: transparent;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
+.header-remove-btn:hover {
+    -fx-background-color: #e05252;
+}
+
+/* MessageTablePanel: кнопка обновления */
+.reload-button {
+    -fx-font-size: 16px;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #c8c4c4;
+    -fx-padding: 2 6 2 6;
+    -fx-cursor: hand;
+}
+.reload-button:hover {
+    -fx-text-fill: #d4a55a;
+    -fx-background-color: rgba(212, 165, 90, 0.15);
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
+/* MessageTablePanel: счётчик страниц */
+.page-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: #c8c4c4;
+}
+
+/* MessageDetailDialog: метка формата */
+.format-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: #c8c4c4;
+}
+
+/* MessageDetailDialog: текстовая область с кодом */
+.mono-text-area {
+    -fx-font-family: 'Monospaced';
+    -fx-font-size: 12px;
+}
+
+/* MessageDetailDialog: ошибка разбора формата */
+.format-error-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #e05252;
+}
+
+/* AboutDialog */
+.about-version-label {
+    -fx-font-size: 13px;
+    -fx-text-fill: #c8c4c4;
+}
+.about-desc-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: #f2f0f0;
+}
+.about-author-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #a09d9d;
 }

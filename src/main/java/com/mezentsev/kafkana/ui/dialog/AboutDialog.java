@@ -29,7 +29,9 @@ public class AboutDialog {
             dialogStage.initModality(Modality.WINDOW_MODAL);
         }
         dialogStage.setResizable(false);
-        dialogStage.setScene(new Scene(buildContent(), 320, 200));
+        Scene aboutScene = new Scene(buildContent(), 320, 200);
+        aboutScene.getStylesheets().add(getClass().getResource("/com/mezentsev/kafkana/app.css").toExternalForm());
+        dialogStage.setScene(aboutScene);
     }
 
     public void showAndWait() {
@@ -41,14 +43,14 @@ public class AboutDialog {
         nameLabel.setFont(Font.font(null, FontWeight.BOLD, 20));
 
         Label versionLabel = new Label("Версия " + APP_VERSION);
-        versionLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #555555;");
+        versionLabel.getStyleClass().add("about-version-label");
 
         Label descLabel = new Label(APP_DESC);
-        descLabel.setStyle("-fx-font-size: 12px;");
+        descLabel.getStyleClass().add("about-desc-label");
         descLabel.setWrapText(true);
 
         Label authorLabel = new Label(APP_AUTHOR);
-        authorLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #888888;");
+        authorLabel.getStyleClass().add("about-author-label");
 
         Button closeButton = new Button("Закрыть");
         closeButton.setDefaultButton(true);

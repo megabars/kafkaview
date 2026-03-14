@@ -40,8 +40,6 @@ public class MessageDetailDialog {
     private static final String FORMAT_JSON = "JSON";
     private static final String FORMAT_XML  = "XML";
 
-    private static final String STYLE_ERROR = "-fx-font-size: 11px; -fx-text-fill: #cc0000;";
-
     // TransformerFactory создаётся один раз — тяжёлая инициализация.
     // Диалоги открываются на FX-потоке, поэтому синхронизация не нужна.
     private static final TransformerFactory XML_TRANSFORMER_FACTORY = createTransformerFactory();
@@ -86,6 +84,7 @@ public class MessageDetailDialog {
         }
 
         Scene scene = new Scene(buildContent(), 680, 560);
+        scene.getStylesheets().add(getClass().getResource("/com/mezentsev/kafkana/app.css").toExternalForm());
         dialogStage.setScene(scene);
         dialogStage.setMinWidth(500);
         dialogStage.setMinHeight(420);
@@ -125,7 +124,7 @@ public class MessageDetailDialog {
         HBox.setHgrow(contentLabel, Priority.ALWAYS);
 
         Label formatLabel = new Label("Формат:");
-        formatLabel.setStyle("-fx-font-size: 12px;");
+        formatLabel.getStyleClass().add("format-label");
 
         ComboBox<String> formatBox = new ComboBox<>();
         formatBox.getItems().addAll(FORMAT_TEXT, FORMAT_JSON, FORMAT_XML);
@@ -139,12 +138,12 @@ public class MessageDetailDialog {
         textArea = new TextArea(message.getValue());
         textArea.setEditable(false);
         textArea.setWrapText(true);
-        textArea.setStyle("-fx-font-family: 'Monospaced'; -fx-font-size: 12px;");
+        textArea.getStyleClass().add("mono-text-area");
         VBox.setVgrow(textArea, Priority.ALWAYS);
 
         // --- Метка ошибки форматирования ---
         errorLabel = new Label();
-        errorLabel.setStyle(STYLE_ERROR);
+        errorLabel.getStyleClass().add("format-error-label");
         errorLabel.setVisible(false);
         errorLabel.setManaged(false);
 

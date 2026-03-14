@@ -44,7 +44,9 @@ public class SettingsDialog {
         dialogStage.initModality(Modality.APPLICATION_MODAL);
         dialogStage.setResizable(false);
 
-        dialogStage.setScene(new Scene(buildContent(), 480, 300));
+        Scene settingsScene = new Scene(buildContent(), 480, 300);
+        settingsScene.getStylesheets().add(getClass().getResource("/com/mezentsev/kafkana/app.css").toExternalForm());
+        dialogStage.setScene(settingsScene);
     }
 
     /**

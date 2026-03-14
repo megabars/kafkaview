@@ -76,7 +76,7 @@ public class MessageTablePanel {
 
         reloadButton = new Button("⟳");
         reloadButton.setDisable(true);
-        reloadButton.setStyle("-fx-font-size: 16px;");
+        reloadButton.getStyleClass().add("reload-button");
         reloadButton.setTooltip(new Tooltip("Обновить сообщения"));
         reloadButton.setOnAction(e -> loadMessages(currentTopic));
 
@@ -139,7 +139,7 @@ public class MessageTablePanel {
         nextButton.setOnAction(e -> { currentPage++; refreshPage(); });
 
         pageLabel = new Label();
-        pageLabel.setStyle("-fx-font-size: 12px;");
+        pageLabel.getStyleClass().add("page-label");
 
         HBox pagination = new HBox(10, prevButton, pageLabel, nextButton);
         pagination.setAlignment(Pos.CENTER);
