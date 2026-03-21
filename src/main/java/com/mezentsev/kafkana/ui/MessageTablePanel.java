@@ -24,6 +24,7 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -149,9 +150,10 @@ public class MessageTablePanel {
         statusLabel = new Label();
         statusLabel.getStyleClass().add("status-label");
 
-        HBox header = new HBox(10, titleLabel, reloadButton, sendButton);
+        Region headerSpacer = new Region();
+        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
+        HBox header = new HBox(8, titleLabel, headerSpacer, reloadButton, sendButton);
         header.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
         root = new VBox(8, header, tableView, pagination, statusLabel);
         root.setPadding(new Insets(10));

@@ -1,212 +1,282 @@
 /* ============================================================
-   KAFKANA — Dark Gray Theme
-   Primary bg: #868383 | Accent: #d4a55a
+   KAFKANA — Dark Theme
+   Primary bg: #1e1e1e | Accent: #3a7bd5
    ============================================================ */
 
 /* --- Root: override Modena base colors --- */
 .root {
-    -fx-base:                        #868383;
-    -fx-background:                  #868383;
-    -fx-control-inner-background:    #ffffff;
-    -fx-control-inner-background-alt: #f5f5f5;
-    -fx-accent:                      #d4a55a;
-    -fx-focus-color:                 #d4a55a;
-    -fx-faint-focus-color:           rgba(212, 165, 90, 0.3);
-    -fx-text-base-color:             #1a1818;
-    -fx-text-background-color:       #1a1818;
+    -fx-base:                        #2a2a2a;
+    -fx-background:                  #1e1e1e;
+    -fx-control-inner-background:    #2a2a2a;
+    -fx-control-inner-background-alt: #272727;
+    -fx-accent:                      #3a7bd5;
+    -fx-focus-color:                 #3a7bd5;
+    -fx-faint-focus-color:           rgba(58, 123, 213, 0.25);
+    -fx-text-base-color:             #e0e0e0;
+    -fx-text-background-color:       #e0e0e0;
 }
 
-/* --- Labels on gray window background --- */
+/* --- Labels --- */
 .label {
-    -fx-text-fill: #f2f0f0;
+    -fx-text-fill: #e0e0e0;
 }
 
 /* --- Buttons --- */
 .button {
-    -fx-background-color: #6b6868;
-    -fx-text-fill: #f2f0f0;
-    -fx-border-color: #5a5757;
+    -fx-background-color: #2e2e2e;
+    -fx-text-fill: #e0e0e0;
+    -fx-border-color: #444444;
     -fx-border-radius: 4;
     -fx-background-radius: 4;
     -fx-padding: 5 12 5 12;
     -fx-cursor: hand;
 }
 .button:hover {
-    -fx-background-color: #7a7777;
+    -fx-background-color: #3a3a3a;
 }
 .button:pressed {
-    -fx-background-color: #5a5757;
+    -fx-background-color: #222222;
 }
 .button:disabled {
-    -fx-opacity: 0.5;
+    -fx-opacity: 0.4;
 }
 .button:default {
-    -fx-background-color: #d4a55a;
-    -fx-text-fill: #1a1818;
+    -fx-background-color: #3a7bd5;
+    -fx-text-fill: #ffffff;
     -fx-font-weight: bold;
-    -fx-border-color: #c4924a;
+    -fx-border-color: #2a6ac5;
 }
 .button:default:hover {
-    -fx-background-color: #c4924a;
+    -fx-background-color: #4a8be5;
 }
 .button:default:pressed {
-    -fx-background-color: #b4823a;
+    -fx-background-color: #2a6ac5;
 }
 
 /* --- TextField / TextArea --- */
 .text-field, .text-area {
-    -fx-background-color: white;
-    -fx-text-fill: #1a1818;
-    -fx-prompt-text-fill: #aaaaaa;
-    -fx-border-color: #b0adad;
+    -fx-background-color: #2a2a2a;
+    -fx-text-fill: #e0e0e0;
+    -fx-prompt-text-fill: #555555;
+    -fx-border-color: #444444;
     -fx-border-radius: 3;
     -fx-background-radius: 3;
-    -fx-highlight-fill: #d4a55a;
-    -fx-highlight-text-fill: #1a1818;
+    -fx-highlight-fill: #3a7bd5;
+    -fx-highlight-text-fill: #ffffff;
 }
 .text-field:focused, .text-area:focused {
-    -fx-border-color: #d4a55a;
+    -fx-border-color: #3a7bd5;
 }
 .text-area .content {
-    -fx-background-color: white;
+    -fx-background-color: #2a2a2a;
 }
 
 /* --- ListView (список топиков) --- */
 .list-view {
-    -fx-background-color: white;
-    -fx-border-color: #b0adad;
+    -fx-background-color: #2a2a2a;
+    -fx-border-color: #383838;
     -fx-border-radius: 4;
     -fx-background-radius: 4;
 }
 .list-cell {
     -fx-background-color: transparent;
-    -fx-text-fill: #1a1818;
-    -fx-padding: 5 8 5 8;
+    -fx-text-fill: #e0e0e0;
+    -fx-padding: 6 10 6 10;
 }
 .list-cell:odd {
-    -fx-background-color: #f5f5f5;
+    -fx-background-color: #272727;
 }
 .list-cell:selected {
-    -fx-background-color: #d4a55a;
-    -fx-text-fill: #1a1818;
+    -fx-background-color: #3a7bd5;
+    -fx-text-fill: #ffffff;
 }
 .list-cell:selected:focused {
-    -fx-background-color: #d4a55a;
+    -fx-background-color: #3a7bd5;
+    -fx-text-fill: #ffffff;
 }
 .list-cell:hover:!selected {
-    -fx-background-color: rgba(212, 165, 90, 0.25);
+    -fx-background-color: rgba(58, 123, 213, 0.15);
 }
 
 /* --- TableView --- */
 .table-view {
-    -fx-background-color: white;
-    -fx-border-color: #b0adad;
+    -fx-background-color: #2a2a2a;
+    -fx-border-color: #383838;
     -fx-border-radius: 4;
-    -fx-table-cell-border-color: #e0dede;
+    -fx-table-cell-border-color: #333333;
 }
 .table-view .column-header-background {
-    -fx-background-color: #6b6868;
+    -fx-background-color: #252525;
 }
 .table-view .column-header {
     -fx-background-color: transparent;
-    -fx-border-color: transparent #868383 transparent transparent;
+    -fx-border-color: transparent #383838 transparent transparent;
 }
 .table-view .column-header .label {
-    -fx-text-fill: #f2f0f0;
+    -fx-text-fill: #aaaaaa;
     -fx-font-weight: bold;
     -fx-font-size: 12px;
 }
 .table-view .filler {
-    -fx-background-color: #6b6868;
+    -fx-background-color: #252525;
     -fx-border-color: transparent;
 }
 .table-row-cell {
-    -fx-background-color: white;
-    -fx-text-fill: #1a1818;
-    -fx-border-color: transparent transparent #e0dede transparent;
+    -fx-background-color: #2a2a2a;
+    -fx-text-fill: #e0e0e0;
+    -fx-border-color: transparent transparent #333333 transparent;
 }
 .table-row-cell:odd {
-    -fx-background-color: #f5f5f5;
+    -fx-background-color: #272727;
 }
 .table-row-cell:selected {
-    -fx-background-color: #d4a55a;
+    -fx-background-color: #3a7bd5;
 }
 .table-row-cell:selected .table-cell {
-    -fx-text-fill: #1a1818;
+    -fx-text-fill: #ffffff;
 }
 .table-row-cell:hover:!selected {
-    -fx-background-color: rgba(212, 165, 90, 0.2);
+    -fx-background-color: rgba(58, 123, 213, 0.12);
 }
 .table-cell {
-    -fx-text-fill: #1a1818;
+    -fx-text-fill: #e0e0e0;
     -fx-font-size: 12px;
 }
 .table-view .placeholder .label {
-    -fx-text-fill: #999999;
+    -fx-text-fill: #555555;
 }
 
 /* Пустой ключ */
 .table-cell:empty-key {
-    -fx-text-fill: #bbbbbb;
+    -fx-text-fill: #555555;
 }
 
 /* --- ScrollBar --- */
 .scroll-bar {
-    -fx-background-color: #f0eeee;
+    -fx-background-color: #1e1e1e;
 }
 .scroll-bar .track {
-    -fx-background-color: #f0eeee;
+    -fx-background-color: #1e1e1e;
     -fx-border-color: transparent;
 }
 .scroll-bar .thumb {
-    -fx-background-color: #b0adad;
+    -fx-background-color: #444444;
     -fx-background-radius: 4;
 }
 .scroll-bar .thumb:hover {
-    -fx-background-color: #d4a55a;
+    -fx-background-color: #3a7bd5;
 }
 .scroll-bar .increment-button,
 .scroll-bar .decrement-button {
-    -fx-background-color: #f0eeee;
+    -fx-background-color: #1e1e1e;
     -fx-border-color: transparent;
 }
 .scroll-bar .increment-arrow,
 .scroll-bar .decrement-arrow {
-    -fx-background-color: #888888;
+    -fx-background-color: #555555;
 }
 
 /* --- SplitPane --- */
 .split-pane {
-    -fx-background-color: #5a5757;
+    -fx-background-color: #1e1e1e;
 }
 .split-pane-divider {
-    -fx-background-color: #5a5757;
-    -fx-padding: 0 2 0 2;
+    -fx-background-color: #1e1e1e;
+    -fx-padding: 0 1 0 1;
 }
 
 /* --- Separator --- */
 .separator .line {
-    -fx-border-color: #5a5757;
+    -fx-border-color: #383838;
     -fx-border-width: 1 0 0 0;
 }
 
 /* --- Tooltip --- */
 .tooltip {
-    -fx-background-color: #3a3838;
-    -fx-text-fill: #f2f0f0;
-    -fx-border-color: #5a5757;
+    -fx-background-color: #252525;
+    -fx-text-fill: #e0e0e0;
+    -fx-border-color: #444444;
     -fx-font-size: 11px;
 }
 
 /* --- CheckBox --- */
 .check-box .box {
-    -fx-background-color: #6b6868;
-    -fx-border-color: #5a5757;
+    -fx-background-color: #2e2e2e;
+    -fx-border-color: #444444;
     -fx-border-radius: 3;
     -fx-background-radius: 3;
 }
 .check-box:selected .mark {
-    -fx-background-color: #d4a55a;
+    -fx-background-color: #3a7bd5;
+}
+
+/* --- MenuBar (Windows) --- */
+.menu-bar {
+    -fx-background-color: #252525;
+}
+.menu {
+    -fx-background-color: transparent;
+}
+.menu:showing, .menu:focused {
+    -fx-background-color: #333333;
+}
+.menu .label {
+    -fx-text-fill: #e0e0e0;
+}
+.context-menu {
+    -fx-background-color: #252525;
+    -fx-border-color: #383838;
+}
+.menu-item:focused {
+    -fx-background-color: #3a7bd5;
+}
+.menu-item .label {
+    -fx-text-fill: #e0e0e0;
+}
+
+/* --- ComboBox --- */
+.combo-box {
+    -fx-background-color: #2e2e2e;
+    -fx-border-color: #444444;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
+.combo-box .list-cell {
+    -fx-text-fill: #e0e0e0;
+    -fx-background-color: #2e2e2e;
+}
+.combo-box-popup .list-view {
+    -fx-background-color: #252525;
+    -fx-border-color: #444444;
+}
+.combo-box-popup .list-cell {
+    -fx-background-color: #252525;
+    -fx-text-fill: #e0e0e0;
+}
+.combo-box-popup .list-cell:selected {
+    -fx-background-color: #3a7bd5;
+    -fx-text-fill: #ffffff;
+}
+.combo-box-popup .list-cell:hover:!selected {
+    -fx-background-color: rgba(58, 123, 213, 0.15);
+}
+
+/* --- Tab pane --- */
+.tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: #252525;
+}
+.tab {
+    -fx-background-color: #252525;
+    -fx-border-color: transparent;
+}
+.tab:selected {
+    -fx-background-color: #1e1e1e;
+}
+.tab .tab-label {
+    -fx-text-fill: #aaaaaa;
+}
+.tab:selected .tab-label {
+    -fx-text-fill: #e0e0e0;
 }
 
 /* ============================================================
@@ -216,23 +286,29 @@
 /* Статусные метки */
 .status-label {
     -fx-font-size: 11px;
-    -fx-text-fill: #c8c4c4;
+    -fx-text-fill: #666666;
 }
 .status-label-error {
     -fx-font-size: 11px;
     -fx-text-fill: #e05252;
 }
 
+/* Счётчик топиков */
+.topic-count-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #555555;
+}
+
 /* Подсказки под полями */
 .hint-label {
     -fx-font-size: 11px;
-    -fx-text-fill: #c8c4c4;
+    -fx-text-fill: #666666;
 }
 
 /* Результат проверки соединения */
 .test-result-normal {
     -fx-font-size: 12px;
-    -fx-text-fill: #c8c4c4;
+    -fx-text-fill: #666666;
 }
 .test-result-warning {
     -fx-font-size: 12px;
@@ -252,8 +328,8 @@
     -fx-padding: 0 6 0 6;
     -fx-font-size: 12px;
     -fx-cursor: hand;
-    -fx-background-color: #5a5757;
-    -fx-text-fill: #f2f0f0;
+    -fx-background-color: #3a3a3a;
+    -fx-text-fill: #e0e0e0;
     -fx-border-color: transparent;
     -fx-border-radius: 3;
     -fx-background-radius: 3;
@@ -262,32 +338,45 @@
     -fx-background-color: #e05252;
 }
 
-/* MessageTablePanel: кнопка обновления */
+/* Кнопка обновления (иконка) */
 .reload-button {
     -fx-font-size: 16px;
     -fx-background-color: transparent;
     -fx-border-color: transparent;
-    -fx-text-fill: #c8c4c4;
+    -fx-text-fill: #888888;
     -fx-padding: 2 6 2 6;
     -fx-cursor: hand;
 }
 .reload-button:hover {
-    -fx-text-fill: #d4a55a;
-    -fx-background-color: rgba(212, 165, 90, 0.15);
+    -fx-text-fill: #3a7bd5;
+    -fx-background-color: rgba(58, 123, 213, 0.12);
     -fx-border-radius: 4;
     -fx-background-radius: 4;
+}
+
+/* Поле поиска по топикам */
+.search-field {
+    -fx-background-color: #242424;
+    -fx-text-fill: #e0e0e0;
+    -fx-prompt-text-fill: #555555;
+    -fx-border-color: #383838;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
+.search-field:focused {
+    -fx-border-color: #3a7bd5;
 }
 
 /* MessageTablePanel: счётчик страниц */
 .page-label {
     -fx-font-size: 12px;
-    -fx-text-fill: #c8c4c4;
+    -fx-text-fill: #666666;
 }
 
 /* MessageDetailDialog: метка формата */
 .format-label {
     -fx-font-size: 12px;
-    -fx-text-fill: #c8c4c4;
+    -fx-text-fill: #666666;
 }
 
 /* MessageDetailDialog: текстовая область с кодом */
@@ -305,13 +394,13 @@
 /* AboutDialog */
 .about-version-label {
     -fx-font-size: 13px;
-    -fx-text-fill: #c8c4c4;
+    -fx-text-fill: #888888;
 }
 .about-desc-label {
     -fx-font-size: 12px;
-    -fx-text-fill: #f2f0f0;
+    -fx-text-fill: #e0e0e0;
 }
 .about-author-label {
     -fx-font-size: 11px;
-    -fx-text-fill: #a09d9d;
+    -fx-text-fill: #666666;
 }
