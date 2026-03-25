@@ -38,20 +38,22 @@ There are no tests or linting configured in this project.
 **Entry point:** `MainApp.java` — extends `javafx.application.Application`, initializes `ConnectionSettings`, `KafkaService`, and `MainWindow`, cleans up on exit.
 
 **Layer structure:**
-- `model/` — `KafkaMessage` (JavaFX observable properties: key, value, timestamp, partition, offset), `ConnectionSettings` (bootstrap servers, max messages limit), `SettingsPersistence` (Java Preferences API — macOS: `~/Library/Preferences`, Windows: Registry)
+- `model/` — `KafkaMessage` (JavaFX observable properties: key, value, timestamp, partition, offset, headers), `ConnectionSettings` (bootstrap servers, max messages limit), `AppSettings` (all settings incl. default format and language), `AppSettingsPersistence` (file-based storage at `~/.kafkana/settings.properties`)
 - `service/KafkaService.java` — Kafka I/O on a **single-threaded** `executor` (preserves producer state across calls) plus a 2-thread `adminExecutor` for `listTopics`/`testConnection` so they don't block ongoing fetches. Uses `assign()` instead of `subscribe()` to skip consumer group rebalance. `fetchMessagesStreaming()` seeks near the tail of each partition and delivers batches to a callback as they arrive. `distributeQuota()` spreads `maxMessages` across partitions proportionally, reallocating from under-filled ones.
-- `ui/MainWindow.java` — Orchestrates the split-pane layout (30% left / 70% right), menu bar (File → Exit, Settings → Connection, Help → About), and wires topic selection to message loading
-- `ui/TopicListPanel.java` — `ListView` of topics with a refresh button and status label
-- `ui/MessageTablePanel.java` — `TableView` with pagination (30 per page), columns for key/value/timestamp/partition/offset, double-click opens detail dialog, send-message button, refresh button. Tracks a **generation counter** per fetch; batch callbacks compare generation to discard stale results from cancelled fetches.
+- `ui/MainWindow.java` — Orchestrates the split-pane layout (30% left / 70% right), menu bar (File → Exit, Settings, Help → About), and wires topic selection to message loading
+- `ui/TopicListPanel.java` — `ListView` of topics with a real-time search field (filters by substring), an icon refresh button in the header, and a topic count label at the bottom
+- `ui/MessageTablePanel.java` — `TableView` with pagination (30 per page), columns for partition/value/timestamp/key/offset, double-click opens detail dialog, send-message and refresh buttons aligned to the right. Tracks a **generation counter** per fetch; batch callbacks compare generation to discard stale results from cancelled fetches.
 - `ui/UiUtils.java` — Static helpers for switching CSS classes on status labels
-- `ui/dialog/SettingsDialog.java` — Connection config with a "test connection" button
-- `ui/dialog/MessageDetailDialog.java` — Shows full message body with Text/JSON/XML formatting and message headers; includes resend button. JSON pretty-printer is hand-rolled; XML uses `javax.xml.transform` with XXE protection.
+- `ui/dialog/AppSettingsDialog.java` — Unified settings dialog with three tabs: Connection (bootstrap servers, max messages, test), Display (default message format), Interface (language). Replaces the old `SettingsDialog`.
+- `ui/dialog/MessageDetailDialog.java` — Shows full message body with Text/JSON/XML formatting and message headers; includes resend button. Resend uses `Platform.runLater` to open `SendMessageDialog` after this dialog closes (required — `showAndWait` cannot be called from within a closing dialog's handler). JSON pretty-printer is hand-rolled; XML uses `javax.xml.transform` with XXE protection.
 - `ui/dialog/SendMessageDialog.java` — Send a message to the current topic; key and headers are optional; shows success/error status inline, stays open for follow-up sends
 - `ui/dialog/AboutDialog.java` — App info dialog
 
 **Cancellation:** Each `fetchMessagesStreaming()` call mints a new `AtomicBoolean` token stored in `currentFetchToken`; the previous token is flipped to cancelled. The worker polls the token between polls to exit early.
 
-**Styling:** `src/main/resources/com/mezentsev/kafkana/app.css` — empty-key cell styling, status label variants (normal/error), connection test result colours.
+**Styling:** `src/main/resources/com/mezentsev/kafkana/app.css` — dark theme (`#1e1e1e` background, `#3a7bd5` blue accent). Covers all Modena overrides plus custom classes: `.status-label`, `.status-label-error`, `.reload-button`, `.search-field`, `.topic-sidebar`, `.mono-text-area`, `.header-remove-btn`, etc.
+
+**Localisation:** `src/main/resources/com/mezentsev/kafkana/i18n/` — `messages_ru.properties` and `messages_en.properties`. Language is stored in `AppSettings` and takes effect after restart.
 
 **Logging:** `src/main/resources/simplelogger.properties` — suppresses Kafka client INFO noise; only WARN and above are emitted to stderr.
 
