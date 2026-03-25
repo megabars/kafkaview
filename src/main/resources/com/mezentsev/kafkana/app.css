@@ -71,24 +71,25 @@
     -fx-background-color: #2a2a2a;
 }
 
-/* --- ListView (список топиков) --- */
+/* --- ListView --- */
 .list-view {
-    -fx-background-color: #2a2a2a;
-    -fx-border-color: #383838;
-    -fx-border-radius: 4;
-    -fx-background-radius: 4;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 4 6 4 6;
 }
 .list-cell {
     -fx-background-color: transparent;
     -fx-text-fill: #e0e0e0;
-    -fx-padding: 6 10 6 10;
+    -fx-padding: 5 8 5 8;
+    -fx-background-radius: 6;
 }
 .list-cell:odd {
-    -fx-background-color: #272727;
+    -fx-background-color: transparent;
 }
 .list-cell:selected {
     -fx-background-color: #3a7bd5;
     -fx-text-fill: #ffffff;
+    -fx-background-radius: 6;
 }
 .list-cell:selected:focused {
     -fx-background-color: #3a7bd5;
@@ -96,6 +97,10 @@
 }
 .list-cell:hover:!selected {
     -fx-background-color: rgba(58, 123, 213, 0.15);
+    -fx-background-radius: 6;
+}
+.list-view:!focused .list-cell:selected {
+    -fx-background-color: #555555;
 }
 
 /* --- TableView --- */
@@ -181,7 +186,7 @@
     -fx-background-color: #1e1e1e;
 }
 .split-pane-divider {
-    -fx-background-color: #1e1e1e;
+    -fx-background-color: #2e2e2e;
     -fx-padding: 0 1 0 1;
 }
 
@@ -323,7 +328,7 @@
     -fx-text-fill: #e05252;
 }
 
-/* Кнопка удаления заголовка в SendMessageDialog */
+/* Кнопка удаления заголовка */
 .header-remove-btn {
     -fx-padding: 0 6 0 6;
     -fx-font-size: 12px;
@@ -360,32 +365,37 @@
     -fx-text-fill: #e0e0e0;
     -fx-prompt-text-fill: #555555;
     -fx-border-color: #383838;
-    -fx-border-radius: 3;
-    -fx-background-radius: 3;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
 }
 .search-field:focused {
     -fx-border-color: #3a7bd5;
 }
 
-/* MessageTablePanel: счётчик страниц */
+/* Sidebar панели топиков */
+.topic-sidebar {
+    -fx-background-color: #1e1e1e;
+}
+
+/* Счётчик страниц */
 .page-label {
     -fx-font-size: 12px;
     -fx-text-fill: #666666;
 }
 
-/* MessageDetailDialog: метка формата */
+/* Метка формата */
 .format-label {
     -fx-font-size: 12px;
     -fx-text-fill: #666666;
 }
 
-/* MessageDetailDialog: текстовая область с кодом */
+/* TextArea с кодом */
 .mono-text-area {
     -fx-font-family: 'Monospaced';
     -fx-font-size: 12px;
 }
 
-/* MessageDetailDialog: ошибка разбора формата */
+/* Ошибка разбора формата */
 .format-error-label {
     -fx-font-size: 11px;
     -fx-text-fill: #e05252;

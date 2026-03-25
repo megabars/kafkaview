@@ -84,6 +84,7 @@ public class TopicListPanel {
         root.setPadding(new Insets(10, 8, 8, 8));
         root.setMinWidth(200);
         root.setMaxWidth(400);
+        root.getStyleClass().add("topic-sidebar");
     }
 
     public Node getView() {
