@@ -326,8 +326,12 @@
                                             <arg value="${project.build.directory}/dist"/>
                                             <arg value="--app-version"/>
                                             <arg value="${project.version}"/>
+                                            <arg value="--icon"/>
+                                            <arg value="${project.basedir}/src/main/resources/com/mezentsev/kafkana/icon.icns"/>
                                             <arg value="--java-options"/>
                                             <arg value="-Dfile.encoding=UTF-8"/>
+                                            <arg value="--java-options"/>
+                                            <arg value="-Dkafkana.bundled=true"/>
                                         </exec>
                                     </target>
                                 </configuration>

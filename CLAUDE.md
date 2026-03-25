@@ -18,7 +18,7 @@ mvn javafx:run
 # Build fat JAR (target/kafkaview-1.0.0-fat.jar)
 mvn package
 
-# Build macOS DMG with bundled JRE (target/dist/KafkaView-1.0.0.dmg)
+# Build macOS DMG with bundled JRE (target/dist/Kafkana-1.0.0.dmg)
 mvn verify -Pdist-mac
 
 # Build Windows .exe distribution with bundled JRE
@@ -53,7 +53,9 @@ There are no tests or linting configured in this project.
 
 **Styling:** `src/main/resources/com/mezentsev/kafkana/app.css` — dark theme (`#1e1e1e` background, `#3a7bd5` blue accent). Covers all Modena overrides plus custom classes: `.status-label`, `.status-label-error`, `.reload-button`, `.search-field`, `.topic-sidebar`, `.mono-text-area`, `.header-remove-btn`, etc.
 
-**Localisation:** `src/main/resources/com/mezentsev/kafkana/i18n/` — `messages_ru.properties` and `messages_en.properties`. Language is stored in `AppSettings` and takes effect after restart.
+**Localisation:** `i18n/I18n.java` — singleton utility; must be initialised via `I18n.init(language)` before any UI is created. All UI strings are retrieved with `I18n.t("key")` — missing keys return `!key!`. Bundles are in `src/main/resources/com/mezentsev/kafkana/i18n/` (`messages_ru.properties`, `messages_en.properties`), loaded as UTF-8 via a custom `Utf8Control` to handle Cyrillic correctly. Language is stored in `AppSettings` and takes effect after restart.
+
+**App icon:** `src/main/resources/com/mezentsev/kafkana/icon.png` (1024×1024 RGBA) and `icon.icns` — Kafka hub logo + letter K, white on dark squircle background. The squircle shape is baked into the PNG with transparent corners because macOS does not apply the squircle mask to unsigned jpackage apps. Regenerate with Python/Pillow if the icon needs updating; rebuild `.icns` via `iconutil`. The `dist-mac` profile passes `--icon icon.icns` to jpackage. No icon-setting code runs at runtime — the bundle's `.icns` is used as-is by macOS.
 
 **Logging:** `src/main/resources/simplelogger.properties` — suppresses Kafka client INFO noise; only WARN and above are emitted to stderr.
 
