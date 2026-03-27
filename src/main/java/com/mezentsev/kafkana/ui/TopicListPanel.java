@@ -118,7 +118,8 @@ public class TopicListPanel {
 
     private void onTopicsError(Throwable error) {
         Throwable cause = error.getCause() != null ? error.getCause() : error;
-        UiUtils.setStatusError(countLabel, MessageFormat.format(I18n.t("topic.panel.error"), cause.getMessage()));
+        String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
+        UiUtils.setStatusError(countLabel, MessageFormat.format(I18n.t("topic.panel.error"), msg));
         iconRefreshBtn.setDisable(false);
     }
 }

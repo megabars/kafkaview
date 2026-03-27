@@ -42,6 +42,7 @@ public class MessageDetailDialog {
     private static final String FORMAT_TEXT = "TEXT";
     private static final String FORMAT_JSON = "JSON";
     private static final String FORMAT_XML  = "XML";
+    private static final String FORMAT_HEX  = "HEX";
 
     // TransformerFactory создаётся один раз — тяжёлая инициализация.
     // Диалоги открываются на FX-потоке, поэтому синхронизация не нужна.
@@ -82,7 +83,8 @@ public class MessageDetailDialog {
         }
 
         Scene scene = new Scene(buildContent(), 680, 560);
-        scene.getStylesheets().add(getClass().getResource("/com/mezentsev/kafkana/app.css").toExternalForm());
+        java.net.URL cssUrl = getClass().getResource("/com/mezentsev/kafkana/app.css");
+        if (cssUrl != null) scene.getStylesheets().add(cssUrl.toExternalForm());
         dialogStage.setScene(scene);
         dialogStage.setMinWidth(500);
         dialogStage.setMinHeight(420);
@@ -132,13 +134,14 @@ public class MessageDetailDialog {
                 return switch (key) {
                     case FORMAT_JSON -> "JSON";
                     case FORMAT_XML  -> "XML";
+                    case FORMAT_HEX  -> I18n.t("detail.format.hex");
                     default          -> I18n.t("detail.format.text");
                 };
             }
             @Override
             public String fromString(String s) { return s; }
         });
-        formatBox.getItems().addAll(FORMAT_TEXT, FORMAT_JSON, FORMAT_XML);
+        formatBox.getItems().addAll(FORMAT_TEXT, FORMAT_JSON, FORMAT_XML, FORMAT_HEX);
         formatBox.setPrefWidth(100);
 
         HBox toolbar = new HBox(10, contentLabel, formatLabel, formatBox);
@@ -237,6 +240,11 @@ public class MessageDetailDialog {
     private void applyFormat(String format) {
         String raw = message.getValue();
         switch (format) {
+            case FORMAT_HEX -> {
+                textArea.setText(formatHex(raw));
+                textArea.setWrapText(false);
+                showError(null);
+            }
             case FORMAT_JSON -> {
                 String formatted = formatJson(raw);
                 if (formatted != null) {
@@ -278,6 +286,40 @@ public class MessageDetailDialog {
             errorLabel.setVisible(true);
             errorLabel.setManaged(true);
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // HEX-дамп: каждый байт UTF-8 строки в виде "XX XX XX ..." по 16 байт в строке
+    // с ASCII-панелью справа (аналог hexdump -C)
+    // -----------------------------------------------------------------------
+
+    private String formatHex(String raw) {
+        if (raw == null || raw.isEmpty()) return "";
+        byte[] bytes = raw.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        StringBuilder sb = new StringBuilder();
+        int lineLen = 16;
+        for (int i = 0; i < bytes.length; i += lineLen) {
+            // Адрес
+            sb.append(String.format("%08X  ", i));
+            // Hex-часть
+            int end = Math.min(i + lineLen, bytes.length);
+            for (int j = i; j < end; j++) {
+                sb.append(String.format("%02X ", bytes[j] & 0xFF));
+                if (j == i + 7) sb.append(' '); // разрыв посередине
+            }
+            // Выравнивание если строка неполная
+            int missing = lineLen - (end - i);
+            sb.append("   ".repeat(missing));
+            if (missing > 8) sb.append(' ');
+            // ASCII-панель
+            sb.append(" |");
+            for (int j = i; j < end; j++) {
+                char c = (char) (bytes[j] & 0xFF);
+                sb.append(c >= 32 && c < 127 ? c : '.');
+            }
+            sb.append("|\n");
+        }
+        return sb.toString().stripTrailing();
     }
 
     // -----------------------------------------------------------------------

@@ -23,6 +23,8 @@ public class AppSettings {
     }
 
     public void setLanguage(String lang) {
-        this.language = lang != null ? lang : "ru";
+        // Whitelist: только "ru" и "en" допустимы; всё остальное → "ru".
+        // Защита от невалидных значений в файле настроек.
+        this.language = "en".equals(lang) ? "en" : "ru";
     }
 }

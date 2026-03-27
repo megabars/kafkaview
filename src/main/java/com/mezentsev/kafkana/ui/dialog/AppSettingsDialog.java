@@ -10,6 +10,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
@@ -43,6 +44,8 @@ public class AppSettingsDialog {
     // Вкладка "Подключение"
     private TextField bootstrapField;
     private TextField maxMessagesField;
+    private TextField fetchTimeoutField;
+    private TextField adminTimeoutField;
     private Button testButton;
     private Button okButton;
     private Label testResultLabel;
@@ -67,8 +70,9 @@ public class AppSettingsDialog {
         dialogStage.initModality(Modality.APPLICATION_MODAL);
         dialogStage.setResizable(false);
 
-        Scene scene = new Scene(buildRoot(), 520, 420);
-        scene.getStylesheets().add(getClass().getResource("/com/mezentsev/kafkana/app.css").toExternalForm());
+        Scene scene = new Scene(buildRoot(), 520, 560);
+        java.net.URL cssUrl = getClass().getResource("/com/mezentsev/kafkana/app.css");
+        if (cssUrl != null) scene.getStylesheets().add(cssUrl.toExternalForm());
         dialogStage.setScene(scene);
     }
 
@@ -147,6 +151,27 @@ public class AppSettingsDialog {
         maxMessagesField.setPrefWidth(100);
         maxMessagesField.setMaxWidth(100);
 
+        Label timeoutsTitle = new Label(I18n.t("settings.connection.timeouts.title"));
+        timeoutsTitle.setFont(Font.font(null, FontWeight.BOLD, 13));
+
+        Label fetchLabel = new Label(I18n.t("settings.connection.fetch.timeout.label"));
+        Label fetchHint  = new Label(I18n.t("settings.connection.fetch.timeout.hint"));
+        fetchHint.getStyleClass().add("hint-label");
+        fetchTimeoutField = new TextField(String.valueOf(settings.getConnection().getFetchTimeoutSec()));
+        fetchTimeoutField.setPrefWidth(80);
+        fetchTimeoutField.setMaxWidth(80);
+        HBox fetchRow = new HBox(8, fetchLabel, fetchTimeoutField);
+        fetchRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label adminLabel = new Label(I18n.t("settings.connection.admin.timeout.label"));
+        Label adminHint  = new Label(I18n.t("settings.connection.admin.timeout.hint"));
+        adminHint.getStyleClass().add("hint-label");
+        adminTimeoutField = new TextField(String.valueOf(settings.getConnection().getAdminTimeoutSec()));
+        adminTimeoutField.setPrefWidth(80);
+        adminTimeoutField.setMaxWidth(80);
+        HBox adminRow = new HBox(8, adminLabel, adminTimeoutField);
+        adminRow.setAlignment(Pos.CENTER_LEFT);
+
         validationLabel = new Label();
         validationLabel.getStyleClass().add("status-label-error");
 
@@ -154,11 +179,19 @@ public class AppSettingsDialog {
                 bootstrapTitle, bootstrapHint, bootstrapField, testRow,
                 new Separator(),
                 maxLabel, maxHint, maxMessagesField,
+                new Separator(),
+                timeoutsTitle,
+                fetchRow, fetchHint,
+                adminRow, adminHint,
                 validationLabel
         );
         content.setPadding(new Insets(16));
 
-        Tab tab = new Tab(I18n.t("settings.tab.connection"), content);
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+
+        Tab tab = new Tab(I18n.t("settings.tab.connection"), scroll);
         return tab;
     }
 
@@ -177,13 +210,14 @@ public class AppSettingsDialog {
                 return switch (key) {
                     case "JSON" -> "JSON";
                     case "XML"  -> "XML";
+                    case "HEX"  -> I18n.t("detail.format.hex");
                     default     -> I18n.t("detail.format.text");
                 };
             }
             @Override
             public String fromString(String s) { return s; }
         });
-        formatBox.getItems().addAll("TEXT", "JSON", "XML");
+        formatBox.getItems().addAll("TEXT", "JSON", "XML", "HEX");
         formatBox.setValue(settings.getDefaultMessageFormat());
         formatBox.setPrefWidth(160);
 
@@ -313,8 +347,34 @@ public class AppSettingsDialog {
             return;
         }
 
+        int fetchTimeout;
+        try {
+            fetchTimeout = Integer.parseInt(fetchTimeoutField.getText().trim());
+            if (fetchTimeout < 1 || fetchTimeout > 300) {
+                validationLabel.setText(I18n.t("settings.connection.error.fetch.timeout"));
+                return;
+            }
+        } catch (NumberFormatException e) {
+            validationLabel.setText(I18n.t("settings.connection.error.fetch.timeout"));
+            return;
+        }
+
+        int adminTimeout;
+        try {
+            adminTimeout = Integer.parseInt(adminTimeoutField.getText().trim());
+            if (adminTimeout < 1 || adminTimeout > 60) {
+                validationLabel.setText(I18n.t("settings.connection.error.admin.timeout"));
+                return;
+            }
+        } catch (NumberFormatException e) {
+            validationLabel.setText(I18n.t("settings.connection.error.admin.timeout"));
+            return;
+        }
+
         settings.getConnection().setBootstrapServers(bootstrap);
         settings.getConnection().setMaxMessages(maxMessages);
+        settings.getConnection().setFetchTimeoutSec(fetchTimeout);
+        settings.getConnection().setAdminTimeoutSec(adminTimeout);
         settings.setDefaultMessageFormat(formatBox.getValue());
         settings.setLanguage(languageBox.getValue());
 

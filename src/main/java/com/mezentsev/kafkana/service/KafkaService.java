@@ -28,24 +28,25 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public class KafkaService {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaService.class);
 
-    private static final Duration POLL_TIMEOUT    = Duration.ofMillis(500);
-    private static final int     ADMIN_TIMEOUT_MS = 10_000;
-    private static final int     TEST_TIMEOUT_MS  = 5_000;
-    // Максимальное суммарное время ожидания данных от брокера при одном fetch.
-    // Если за это время ни одного нового сообщения не пришло, считаем fetch завершённым.
-    private static final Duration FETCH_TIMEOUT   = Duration.ofSeconds(10);
+    private static final Duration POLL_TIMEOUT           = Duration.ofMillis(500);
+    private static final int     TEST_TIMEOUT_MS         = 5_000;
+    // Таймаут для корректного закрытия Consumer — достаточен для commit/cleanup,
+    // не блокирует UI надолго при смене топика.
+    private static final Duration CONSUMER_CLOSE_TIMEOUT = Duration.ofSeconds(2);
 
     private final ConnectionSettings settings;
     // executor — единственный поток для fetch/send (разделяет состояние producer)
@@ -54,11 +55,11 @@ public class KafkaService {
     // чтобы они не вставали в очередь за долгим fetchMessagesStreaming.
     private final ExecutorService adminExecutor;
 
-    // Токен отмены текущего fetch. Каждый новый fetchMessagesStreaming() создаёт свой
-    // AtomicBoolean и сохраняет его здесь; cancelFetch() устанавливает его в true.
-    // Таким образом задачи в очереди (ещё не стартовавшие) немедленно останавливаются
-    // при запуске, а не сбрасывают флаг и продолжают работу.
-    private volatile AtomicBoolean currentFetchToken = new AtomicBoolean(true); // изначально «отменён»
+    // Токен отмены текущего fetch. AtomicReference гарантирует атомарный обмен токенов:
+    // getAndSet() одновременно публикует новый токен и возвращает старый для отмены.
+    // Это устраняет race condition при быстром переключении топиков.
+    private final AtomicReference<AtomicBoolean> currentFetchToken =
+            new AtomicReference<>(new AtomicBoolean(true)); // изначально «отменён»
 
     // Защита от двойного shutdown().
     private final AtomicBoolean shutdownCalled = new AtomicBoolean(false);
@@ -89,20 +90,22 @@ public class KafkaService {
 
     public CompletableFuture<List<String>> listTopics() {
         return CompletableFuture.supplyAsync(() -> {
-            Properties props = buildAdminProps();
+            int adminMs = settings.getAdminTimeoutSec() * 1_000;
+            Properties props = buildAdminProps(adminMs);
             try (AdminClient admin = AdminClient.create(props)) {
-                return admin.listTopics(new ListTopicsOptions().timeoutMs(ADMIN_TIMEOUT_MS))
+                return admin.listTopics(new ListTopicsOptions().timeoutMs(adminMs))
                         .names()
                         // Future.get() таймаут устанавливаем чуть больше Kafka-таймаута,
                         // чтобы Kafka успела обработать свой таймаут и вернуть ответ
                         // до того, как Future.get() прервёт ожидание.
-                        .get(ADMIN_TIMEOUT_MS + 2_000, TimeUnit.MILLISECONDS)
+                        .get(adminMs + 2_000L, TimeUnit.MILLISECONDS)
                         .stream()
                         .sorted()
                         .toList();
             } catch (Exception e) {
                 log.error("Не удалось получить список топиков", e);
-                throw new RuntimeException("Не удалось получить список топиков: " + e.getMessage(), e);
+                String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                throw new RuntimeException("Не удалось получить список топиков: " + msg, e);
             }
         }, adminExecutor);
     }
@@ -147,7 +150,7 @@ public class KafkaService {
      * Отменяет текущий (и все ожидающие в очереди) fetch-запросы.
      */
     public void cancelFetch() {
-        currentFetchToken.set(true);
+        currentFetchToken.get().set(true);
     }
 
     public void fetchMessagesStreaming(
@@ -156,15 +159,21 @@ public class KafkaService {
             Runnable onComplete,
             Consumer<Throwable> onError) {
 
-        // Отменяем предыдущий fetch автоматически, чтобы вызывающий код
-        // не обязан вызывать cancelFetch() вручную перед каждым вызовом.
-        cancelFetch();
+        // Атомарно заменяем токен: getAndSet() возвращает старый токен и публикует новый.
+        // Это устраняет race condition между cancelFetch() и переприсваиванием токена —
+        // оба действия происходят в одной атомарной операции.
         AtomicBoolean cancelToken = new AtomicBoolean(false);
-        currentFetchToken = cancelToken;
+        currentFetchToken.getAndSet(cancelToken).set(true); // отменяем предыдущий fetch
 
         executor.submit(() -> {
             if (cancelToken.get()) return; // задача успела устареть ещё в очереди
-            try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(buildConsumerProps())) {
+
+            // Примечание о effectively-final: consumer инициализирован null и переприсвоен,
+            // поэтому не effectively final. Для его захвата в лямбдах (например stream().allMatch())
+            // используем явные циклы for вместо стримов — это исключает захват переменной.
+            KafkaConsumer<String, String> consumer = null;
+            try {
+                consumer = new KafkaConsumer<>(buildConsumerProps());
                 // assign() вместо subscribe() — обходим group coordinator и rebalance delay (3с)
                 // partitionsFor() делает быстрый metadata-запрос к брокеру
                 List<TopicPartition> partitions = consumer.partitionsFor(topic).stream()
@@ -176,10 +185,11 @@ public class KafkaService {
                 Map<TopicPartition, Long> beginOffsets = consumer.beginningOffsets(partitions);
 
                 // Пустой топик — завершаем сразу (учитываем retention: end == begin)
-                long totalAvailable = partitions.stream()
-                        .mapToLong(tp -> Math.max(0,
-                                endOffsets.getOrDefault(tp, 0L) - beginOffsets.getOrDefault(tp, 0L)))
-                        .sum();
+                long totalAvailable = 0;
+                for (TopicPartition tp : partitions) {
+                    totalAvailable += Math.max(0,
+                            endOffsets.getOrDefault(tp, 0L) - beginOffsets.getOrDefault(tp, 0L));
+                }
                 if (totalAvailable == 0) {
                     Platform.runLater(onComplete);
                     return;
@@ -191,8 +201,12 @@ public class KafkaService {
                 Map<TopicPartition, Long> seekQuota =
                         distributeQuota(partitions, beginOffsets, endOffsets, maxMessages);
                 for (TopicPartition tp : partitions) {
-                    long end = endOffsets.getOrDefault(tp, 0L);
-                    consumer.seek(tp, Math.max(0, end - seekQuota.getOrDefault(tp, 0L)));
+                    long end   = endOffsets.getOrDefault(tp, 0L);
+                    long begin = beginOffsets.getOrDefault(tp, 0L);
+                    // Нижняя граница — beginOffset, а не 0: при активном retention
+                    // сообщения с малых offset удалены, seek ниже begin вызовет ошибку.
+                    long seekPos = Math.max(begin, end - seekQuota.getOrDefault(tp, 0L));
+                    consumer.seek(tp, seekPos);
                 }
 
                 log.debug("Загрузка топика '{}': {} партиций, квота {} сообщений (доступно: {})",
@@ -202,18 +216,19 @@ public class KafkaService {
                 int collected = 0;
                 // idleDeadline сбрасывается при каждом непустом poll — считаем
                 // время простоя брокера, а не суммарное время fetch.
-                long idleDeadline = System.currentTimeMillis() + FETCH_TIMEOUT.toMillis();
+                long fetchTimeoutMs = settings.getFetchTimeoutSec() * 1_000L;
+                long idleDeadline = System.currentTimeMillis() + fetchTimeoutMs;
                 while (!cancelToken.get()) {
                     if (System.currentTimeMillis() > idleDeadline) {
                         log.warn("Fetch idle-timeout ({}s) для топика '{}': загружено {} сообщений",
-                                FETCH_TIMEOUT.getSeconds(), topic, collected);
+                                settings.getFetchTimeoutSec(), topic, collected);
                         break;
                     }
 
                     ConsumerRecords<String, String> records = consumer.poll(POLL_TIMEOUT);
 
                     if (!records.isEmpty()) {
-                        idleDeadline = System.currentTimeMillis() + FETCH_TIMEOUT.toMillis();
+                        idleDeadline = System.currentTimeMillis() + fetchTimeoutMs;
                         List<KafkaMessage> batch = new ArrayList<>(records.count());
                         for (ConsumerRecord<String, String> r : records) {
                             if (collected >= maxMessages) break;
@@ -233,8 +248,14 @@ public class KafkaService {
                         if (collected >= maxMessages) break;
                     }
 
-                    boolean reachedEnd = partitions.stream().allMatch(tp ->
-                        consumer.position(tp) >= endOffsets.getOrDefault(tp, 0L));
+                    // Проверяем достижение конца без лямбды — consumer не effectively final
+                    boolean reachedEnd = true;
+                    for (TopicPartition tp : partitions) {
+                        if (consumer.position(tp) < endOffsets.getOrDefault(tp, 0L)) {
+                            reachedEnd = false;
+                            break;
+                        }
+                    }
                     if (reachedEnd) break;
                 }
 
@@ -245,9 +266,16 @@ public class KafkaService {
             } catch (Exception e) {
                 if (!cancelToken.get()) {
                     log.error("Ошибка загрузки сообщений из топика '{}'", topic, e);
+                    String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
                     Platform.runLater(() -> onError.accept(
                             new RuntimeException("Не удалось загрузить сообщения из топика \""
-                                    + topic + "\": " + e.getMessage(), e)));
+                                    + topic + "\": " + msg, e)));
+                }
+            } finally {
+                // Явный close с timeout: дефолтный close() может висеть 30 сек.
+                // 2 сек достаточно для cleanup без блокировки смены топика.
+                if (consumer != null) {
+                    try { consumer.close(CONSUMER_CLOSE_TIMEOUT); } catch (Exception ignored) {}
                 }
             }
         });
@@ -271,14 +299,16 @@ public class KafkaService {
             } catch (Exception e) {
                 // Инвалидируем producer: после ошибки отправки его состояние непредсказуемо.
                 // При следующем вызове sendMessage() будет создан новый экземпляр.
+                // close(ZERO) намеренно — flush при ошибке отправки бессмысленен.
                 if (producer != null) {
                     try { producer.close(Duration.ZERO); } catch (Exception ignored) {}
                     producer = null;
                     producerBootstrap = null;
                 }
                 log.error("Не удалось отправить сообщение в топик '{}'", topic, e);
+                String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
                 throw new RuntimeException("Не удалось отправить сообщение в топик \""
-                        + topic + "\": " + e.getMessage(), e);
+                        + topic + "\": " + msg, e);
             }
         }, executor);
     }
@@ -321,23 +351,29 @@ public class KafkaService {
 
     /**
      * Возвращает переиспользуемый Producer, пересоздавая его при смене bootstrap-серверов.
-     * Вызывается только на executor-потоке.
+     * При плановом пересоздании вызывает flush() перед закрытием, чтобы не потерять
+     * сообщения в буфере. Вызывается только на executor-потоке.
      */
     private KafkaProducer<String, String> getOrCreateProducer() {
         String bootstrap = settings.getBootstrapServers(); // читаем один раз
         if (producer == null || !bootstrap.equals(producerBootstrap)) {
-            if (producer != null) producer.close(Duration.ZERO);
+            if (producer != null) {
+                // Плановое закрытие: flush гарантирует доставку in-flight сообщений.
+                // В отличие от аварийного close(ZERO) в обработчике ошибок.
+                try { producer.flush(); } catch (Exception ignored) {}
+                producer.close(Duration.ofSeconds(2));
+            }
             producerBootstrap = bootstrap;
             producer = new KafkaProducer<>(buildProducerProps(bootstrap));
         }
         return producer;
     }
 
-    private Properties buildAdminProps() {
+    private Properties buildAdminProps(int timeoutMs) {
         Properties props = new Properties();
         props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, settings.getBootstrapServers());
-        props.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, String.valueOf(ADMIN_TIMEOUT_MS));
-        props.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, String.valueOf(ADMIN_TIMEOUT_MS));
+        props.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, String.valueOf(timeoutMs));
+        props.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, String.valueOf(timeoutMs));
         props.put(AdminClientConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG, "5000");
         return props;
     }
@@ -356,10 +392,9 @@ public class KafkaService {
     private Properties buildConsumerProps() {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, settings.getBootstrapServers());
-        // Фиксированный group ID: используем assign(), group coordinator не задействован,
-        // но GROUP_ID требуется некоторыми брокерами для AdminAPI-совместимости.
-        // UUID не нужен — одна постоянная группа не засоряет метаданные кластера.
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "kafkana-readonly");
+        // UUID-суффикс гарантирует изоляцию между параллельными экземплярами приложения:
+        // два открытых окна не попадут в одну consumer group и не спровоцируют rebalance.
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "kafkana-" + UUID.randomUUID());
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");

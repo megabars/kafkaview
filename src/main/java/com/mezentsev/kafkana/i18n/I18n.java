@@ -25,7 +25,10 @@ public final class I18n {
      * @param language "ru" или "en"
      */
     public static void init(String language) {
-        Locale locale = "en".equals(language) ? Locale.ENGLISH : Locale.forLanguageTag("ru");
+        // Whitelist допустимых языков: любое иное значение (повреждённый файл настроек,
+        // инъекция) даёт безопасный fallback на русский.
+        String lang = "en".equals(language) ? "en" : "ru";
+        Locale locale = "en".equals(lang) ? Locale.ENGLISH : Locale.forLanguageTag("ru");
         bundle = ResourceBundle.getBundle(
                 "com.mezentsev.kafkana.i18n.messages", locale, new Utf8Control());
     }

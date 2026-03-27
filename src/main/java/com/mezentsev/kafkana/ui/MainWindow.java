@@ -17,6 +17,9 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
+import java.io.IOException;
+import java.net.URL;
+
 public class MainWindow {
 
     private final AppSettings settings;
@@ -55,7 +58,12 @@ public class MainWindow {
         VBox.setVgrow(splitPane, Priority.ALWAYS);
 
         Scene scene = new Scene(root, 1100, 700);
-        scene.getStylesheets().add(getClass().getResource("/com/mezentsev/kafkana/app.css").toExternalForm());
+        // null-check: getResource() возвращает null если файл отсутствует в classpath,
+        // что иначе вызвало бы NPE в toExternalForm().
+        URL cssUrl = getClass().getResource("/com/mezentsev/kafkana/app.css");
+        if (cssUrl != null) {
+            scene.getStylesheets().add(cssUrl.toExternalForm());
+        }
         primaryStage.setScene(scene);
         primaryStage.setTitle(I18n.t("app.title"));
         primaryStage.setMinWidth(750);
@@ -95,7 +103,17 @@ public class MainWindow {
         AppSettingsDialog dialog = new AppSettingsDialog(settings, kafkaService, ownerStage);
         boolean confirmed = dialog.showAndWait();
         if (confirmed) {
-            AppSettingsPersistence.save(settings);
+            try {
+                AppSettingsPersistence.save(settings);
+            } catch (IOException e) {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle(I18n.t("settings.title"));
+                alert.setHeaderText(I18n.t("settings.save.error.header"));
+                String detail = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                alert.setContentText(detail);
+                alert.initOwner(ownerStage);
+                alert.showAndWait();
+            }
             topicListPanel.loadTopics();
             if (dialog.isLanguageChanged()) {
                 Alert alert = new Alert(Alert.AlertType.INFORMATION);

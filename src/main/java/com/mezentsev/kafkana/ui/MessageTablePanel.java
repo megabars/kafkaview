@@ -22,6 +22,7 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.Tooltip;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -31,8 +32,9 @@ import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
 import java.text.MessageFormat;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class MessageTablePanel {
@@ -46,8 +48,11 @@ public class MessageTablePanel {
     private final AppSettings appSettings;
 
     private final TableView<KafkaMessage> tableView;
-    // Все загруженные сообщения (полный список для сортировки и пагинации)
-    private final List<KafkaMessage> allMessages = new ArrayList<>();
+    // Все загруженные сообщения (полный список для сортировки и пагинации).
+    // CopyOnWriteArrayList обеспечивает потокобезопасность при concurrent addAll/sort:
+    // batch callback и comparator listener оба работают на FX-потоке, но CopyOnWrite
+    // даёт корректность даже если в будущем точки вызова изменятся.
+    private final CopyOnWriteArrayList<KafkaMessage> allMessages = new CopyOnWriteArrayList<>();
     // Текущая страница — то, что видит таблица
     private final ObservableList<KafkaMessage> pageItems = FXCollections.observableArrayList();
 
@@ -58,15 +63,17 @@ public class MessageTablePanel {
     private final Button nextButton;
     private final Button sendButton;
     private final Button reloadButton;
+    private final ProgressIndicator loadingIndicator;
     private final VBox root;
 
     private Stage ownerStage;
     private int currentPage = 0;
     private String currentTopic = null;
 
-    // Счётчик поколений: при каждом новом loadMessages() инкрементируется,
-    // чтобы устаревшие batch-коллбэки из предыдущего fetch игнорировались.
-    private int generation = 0;
+    // AtomicInteger гарантирует атомарный инкремент без race condition при быстром
+    // переключении топиков: каждый fetch получает уникальный generation, устаревшие
+    // batch-коллбэки сравнивают generation.get() и игнорируются.
+    private final AtomicInteger generation = new AtomicInteger(0);
 
     public MessageTablePanel(KafkaService kafkaService, AppSettings appSettings) {
         this.kafkaService = kafkaService;
@@ -150,9 +157,14 @@ public class MessageTablePanel {
         statusLabel = new Label();
         statusLabel.getStyleClass().add("status-label");
 
+        loadingIndicator = new ProgressIndicator();
+        loadingIndicator.setPrefSize(18, 18);
+        loadingIndicator.setVisible(false);
+        loadingIndicator.setManaged(false);
+
         Region headerSpacer = new Region();
         HBox.setHgrow(headerSpacer, Priority.ALWAYS);
-        HBox header = new HBox(8, titleLabel, headerSpacer, reloadButton, sendButton);
+        HBox header = new HBox(8, titleLabel, headerSpacer, loadingIndicator, reloadButton, sendButton);
         header.setAlignment(Pos.CENTER_LEFT);
 
         root = new VBox(8, header, tableView, pagination, statusLabel);
@@ -168,15 +180,17 @@ public class MessageTablePanel {
     }
 
     public void loadMessages(String topic) {
-        // Захватываем поколение для этого запроса; предыдущий fetch отменяется
-        // автоматически внутри fetchMessagesStreaming().
-        final int myGen = ++generation;
+        // incrementAndGet атомарен — нет race condition при быстром переключении топиков.
+        // Предыдущий fetch отменяется автоматически внутри fetchMessagesStreaming().
+        final int myGen = generation.incrementAndGet();
 
         currentTopic = topic;
         sendButton.setDisable(false);
         reloadButton.setDisable(false);
         titleLabel.setText(MessageFormat.format(I18n.t("messages.panel.title.topic"), topic));
         setStatusNormal(I18n.t("messages.panel.loading"));
+        loadingIndicator.setVisible(true);
+        loadingIndicator.setManaged(true);
         allMessages.clear();
         pageItems.clear();
         pageLabel.setText("");
@@ -188,7 +202,7 @@ public class MessageTablePanel {
 
                 // onBatch: вызывается на FX-потоке сразу после каждого poll
                 batch -> {
-                    if (generation != myGen) return; // устаревший fetch — игнорируем
+                    if (generation.get() != myGen) return; // устаревший fetch — игнорируем
                     allMessages.addAll(batch);
                     // Если активна сортировка, держим список отсортированным сразу,
                     // чтобы страница не «прыгала» при завершении загрузки.
@@ -201,7 +215,9 @@ public class MessageTablePanel {
 
                 // onComplete: вызывается на FX-потоке когда всё прочитано
                 () -> {
-                    if (generation != myGen) return;
+                    if (generation.get() != myGen) return;
+                    loadingIndicator.setVisible(false);
+                    loadingIndicator.setManaged(false);
                     // Применяем сортировку один раз по завершению загрузки
                     if (tableView.getComparator() != null) {
                         allMessages.sort(tableView.getComparator());
@@ -215,7 +231,9 @@ public class MessageTablePanel {
 
                 // onError
                 error -> {
-                    if (generation != myGen) return;
+                    if (generation.get() != myGen) return;
+                    loadingIndicator.setVisible(false);
+                    loadingIndicator.setManaged(false);
                     pageLabel.setText("");
                     Throwable cause = error.getCause() != null ? error.getCause() : error;
                     String msg = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
@@ -233,7 +251,11 @@ public class MessageTablePanel {
         int from = currentPage * PAGE_SIZE;
         int to   = Math.min(from + PAGE_SIZE, total);
 
-        pageItems.setAll(total > 0 ? allMessages.subList(from, to) : List.of());
+        // CopyOnWriteArrayList.subList() не поддерживается — используем stream для среза.
+        List<KafkaMessage> page = total > 0
+                ? allMessages.stream().skip(from).limit(to - from).toList()
+                : List.of();
+        pageItems.setAll(page);
 
         pageLabel.setText(total > 0
                 ? MessageFormat.format(I18n.t("messages.panel.page"),

@@ -59,7 +59,8 @@ public class SendMessageDialog {
         dialogStage.initModality(Modality.APPLICATION_MODAL);
         dialogStage.setResizable(true);
         Scene sendScene = new Scene(buildContent(prefill), 520, 500);
-        sendScene.getStylesheets().add(getClass().getResource("/com/mezentsev/kafkana/app.css").toExternalForm());
+        java.net.URL cssUrl = getClass().getResource("/com/mezentsev/kafkana/app.css");
+        if (cssUrl != null) sendScene.getStylesheets().add(cssUrl.toExternalForm());
         dialogStage.setScene(sendScene);
     }
 
